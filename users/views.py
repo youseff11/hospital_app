@@ -8,6 +8,7 @@ from .models import UserProfile
 from rest_framework.generics import RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated
 from medical_data.serializers import DoctorProfileSerializer
+from rest_framework.authtoken.models import Token
 
 class RegisterView(APIView):
     def post(self, request):
@@ -24,14 +25,21 @@ class LoginView(APIView):
 
         user = authenticate(username=username, password=password)
 
-        if user is not None:
-            profile = UserProfile.objects.get(user=user)
-            return Response({
-                'message': 'Login successful.',
-                'user_type': profile.user_type
-            })
-        else:
+        if user is None:
             return Response({'error': 'Invalid username or password.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # جلب البروفايل
+        profile = UserProfile.objects.get(user=user)
+
+        # الحصول على التوكن أو إنشائه
+        token, created = Token.objects.get_or_create(user=user)
+
+        return Response({
+            'id': user.id,
+            'username': user.username,
+            'role': profile.user_type,
+            'token': token.key,
+        }, status=status.HTTP_200_OK)
 
 class DoctorProfileView(RetrieveAPIView):
     """
