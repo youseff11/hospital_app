@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from django.contrib.auth import authenticate
 from .serializers import UserRegistrationSerializer, UserLoginSerializer
-from .models import UserProfile
+from .models import UserProfile, PatientProfile, DoctorProfile
 from rest_framework.generics import RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated
 from medical_data.serializers import DoctorProfileSerializer
@@ -16,21 +16,50 @@ from rest_framework.authtoken.models import Token
 # 1️⃣  Register (Sign Up)
 # ================================
 class RegisterView(APIView):
+    """
+    POST /api/users/register/
+    - يتوقع: username, email, password (حسب الserializer لديك)
+    - يعيد: message, id, username, role, profile_id, token
+    """
+    permission_classes = [permissions.AllowAny]
+
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
 
-            # إنشاء توكن للمستخدم الجديد
+            # إنشاء توكن للمستخدم الجديد أو الحصول عليه
             token, created = Token.objects.get_or_create(user=user)
 
-            profile = UserProfile.objects.get(user=user)
+            # الحصول على ال UserProfile (يفترض وجوده بواسطة signal)
+            try:
+                profile = UserProfile.objects.get(user=user)
+            except UserProfile.DoesNotExist:
+                # كحل احترازي - إنشاؤه لو لم يكن موجودًا
+                profile = UserProfile.objects.create(user=user, user_type='PATIENT')
+
+            # تحديد profile_id حسب نوع المستخدم (patient/doctor)
+            profile_id = None
+            if profile.user_type == 'PATIENT':
+                try:
+                    profile_id = profile.patientprofile.pk
+                except PatientProfile.DoesNotExist:
+                    # أنشئ PatientProfile احتياطياً
+                    patient = PatientProfile.objects.create(user_profile=profile)
+                    profile_id = patient.pk
+            elif profile.user_type == 'DOCTOR':
+                try:
+                    profile_id = profile.doctorprofile.pk
+                except DoctorProfile.DoesNotExist:
+                    # إذا لم يكن موجودًا، ضع None أو أنشئ واحد حسب سياستك
+                    profile_id = None
 
             return Response({
                 "message": "User created successfully.",
                 "id": user.id,
                 "username": user.username,
-                "role": profile.user_type,   # دائماً PATIENT
+                "role": profile.user_type,
+                "profile_id": profile_id,
                 "token": token.key
             }, status=status.HTTP_201_CREATED)
 
@@ -41,6 +70,13 @@ class RegisterView(APIView):
 # 2️⃣  Login
 # ================================
 class LoginView(APIView):
+    """
+    POST /api/users/login/
+    - يتوقع: username, password
+    - يعيد: id, username, role, profile_id, token
+    """
+    permission_classes = [permissions.AllowAny]
+
     def post(self, request):
         username = request.data.get('username')
         password = request.data.get('password')
@@ -51,34 +87,63 @@ class LoginView(APIView):
             return Response({'error': 'Invalid username or password.'},
                             status=status.HTTP_401_UNAUTHORIZED)
 
-        profile = UserProfile.objects.get(user=user)
+        # الحصول على ال profile والtoken
+        try:
+            profile = UserProfile.objects.get(user=user)
+        except UserProfile.DoesNotExist:
+            # حالة نادرة: إنشاؤه تلقائياً
+            profile = UserProfile.objects.create(user=user, user_type='PATIENT')
 
-        # الحصول على التوكن أو إنشائه
         token, created = Token.objects.get_or_create(user=user)
+
+        # حساب profile_id بناءً على النوع
+        profile_id = None
+        if profile.user_type == 'PATIENT':
+            try:
+                profile_id = profile.patientprofile.pk
+            except PatientProfile.DoesNotExist:
+                profile_id = None
+        elif profile.user_type == 'DOCTOR':
+            try:
+                profile_id = profile.doctorprofile.pk
+            except DoctorProfile.DoesNotExist:
+                profile_id = None
+        else:
+            # ADMIN أو أنواع أخرى: profile_id يبقى None
+            profile_id = None
 
         return Response({
             'id': user.id,
             'username': user.username,
             'role': profile.user_type,
+            'profile_id': profile_id,
             'token': token.key,
         }, status=status.HTTP_200_OK)
 
 
 # ================================
-# 3️⃣  Doctor Profile
+# 3️⃣  Doctor Profile (current doctor)
 # ================================
 class DoctorProfileView(RetrieveAPIView):
     """
-    عرض بروفايل الطبيب الحالي (المسجل دخوله)
-    /api/users/doctors/me/
+    GET /api/users/doctors/me/
+    - يعيد بروفايل الدكتور المسجل دخوله
+    - يتطلب توكن Authentication
     """
     serializer_class = DoctorProfileSerializer
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
+        # التحقق أن المستخدم هو DOCTOR
+        try:
+            user_profile = self.request.user.userprofile
+        except UserProfile.DoesNotExist:
+            raise permissions.PermissionDenied("User profile not found.")
 
-        # لازم يكون دكتور
-        if self.request.user.userprofile.user_type != 'DOCTOR':
+        if user_profile.user_type != 'DOCTOR':
             raise permissions.PermissionDenied("You are not authorized to view this profile.")
 
-        return self.request.user.userprofile.doctorprofile
+        try:
+            return user_profile.doctorprofile
+        except DoctorProfile.DoesNotExist:
+            raise permissions.PermissionDenied("Doctor profile not found.")
