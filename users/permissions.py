@@ -1,10 +1,20 @@
 # users/permissions.py
-
 from rest_framework.permissions import BasePermission
 
-class IsAdminUser(BasePermission):
+class IsRealAdmin(BasePermission):
     """
-    يسمح بالوصول فقط إذا كان المستخدم هو ADMIN.
+    يسمح فقط للمستخدم اللي role بتاعه = ADMIN في UserProfile
     """
+
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.userprofile.user_type == 'ADMIN')
+        user = request.user
+
+        if not user.is_authenticated:
+            return False
+
+        try:
+            profile = user.userprofile
+        except:
+            return False
+
+        return profile.user_type == "ADMIN"
