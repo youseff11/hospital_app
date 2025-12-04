@@ -5,6 +5,9 @@ from rest_framework import status
 from django.contrib.auth import authenticate
 from .serializers import UserRegistrationSerializer, UserLoginSerializer
 from .models import UserProfile
+from rest_framework.generics import RetrieveAPIView
+from rest_framework.permissions import IsAuthenticated
+from medical_data.serializers import DoctorProfileSerializer
 
 class RegisterView(APIView):
     def post(self, request):
@@ -29,3 +32,18 @@ class LoginView(APIView):
             })
         else:
             return Response({'error': 'Invalid username or password.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+class DoctorProfileView(RetrieveAPIView):
+    """
+    عرض بروفايل الطبيب الحالي (المسجل دخوله)
+    /api/doctors/me/
+    """
+    serializer_class = DoctorProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        # البحث عن DoctorProfile المرتبط بالمستخدم الحالي
+        if self.request.user.userprofile.user_type == 'DOCTOR':
+            return self.request.user.userprofile.doctorprofile
+        else:
+            raise permissions.PermissionDenied("You are not authorized to view this profile.")
