@@ -147,3 +147,69 @@ class DoctorProfileView(RetrieveAPIView):
             return user_profile.doctorprofile
         except DoctorProfile.DoesNotExist:
             raise permissions.PermissionDenied("Doctor profile not found.")
+# ================================
+# 4️⃣  Admin - List Users
+# ================================
+class AdminListUsers(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        users = UserProfile.objects.select_related("user").all()
+
+        data = []
+        for p in users:
+            data.append({
+                "id": p.user.id,
+                "username": p.user.username,
+                "email": p.user.email,
+                "role": p.user_type,
+                "profile_id": (
+                    p.patientprofile.id if p.user_type == "PATIENT"
+                    else p.doctorprofile.id if p.user_type == "DOCTOR"
+                    else None
+                ),
+            })
+
+        return Response(data, status=status.HTTP_200_OK)
+# ================================
+# 5️⃣  Admin - Delete User
+# ================================
+class AdminDeleteUser(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def delete(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+            user.delete()
+            return Response({"message": "User deleted successfully."},
+                            status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."},
+                            status=status.HTTP_404_NOT_FOUND)
+# ================================
+# 6️⃣  Admin - Update User Role
+# ================================
+class AdminUpdateRole(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def put(self, request, user_id):
+        new_role = request.data.get("role")
+
+        if new_role not in ["PATIENT", "DOCTOR", "ADMIN"]:
+            return Response({"error": "Invalid role."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user_profile = UserProfile.objects.get(user_id=user_id)
+        except UserProfile.DoesNotExist:
+            return Response({"error": "User profile not found."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        # تحديث الدور
+        user_profile.user_type = new_role
+        user_profile.save()
+
+        return Response({
+            "message": "Role updated successfully.",
+            "new_role": new_role
+        }, status=status.HTTP_200_OK)
