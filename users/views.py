@@ -159,19 +159,29 @@ class AdminListUsers(APIView):
 
         data = []
         for p in users:
+
+            # الحصول بأمان على patientprofile أو doctorprofile
+            patient = getattr(p, "patientprofile", None)
+            doctor = getattr(p, "doctorprofile", None)
+
+            profile_id = None
+            if p.user_type == "PATIENT" and patient is not None:
+                profile_id = patient.pk
+            elif p.user_type == "DOCTOR" and doctor is not None:
+                profile_id = doctor.pk
+            else:
+                profile_id = None
+
             data.append({
                 "id": p.user.id,
                 "username": p.user.username,
                 "email": p.user.email,
                 "role": p.user_type,
-                "profile_id": (
-                    p.patientprofile.id if p.user_type == "PATIENT"
-                    else p.doctorprofile.id if p.user_type == "DOCTOR"
-                    else None
-                ),
+                "profile_id": profile_id,
             })
 
         return Response(data, status=status.HTTP_200_OK)
+
 # ================================
 # 5️⃣  Admin - Delete User
 # ================================
