@@ -46,8 +46,7 @@ class DoctorProfile(models.Model):
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
     
     def __str__(self):
-        # ** تم التعديل هنا: استخدام .name_ar بدلاً من .name **
-        spec_name = self.specialization.name if self.specialization else 'Undefined'
+        spec_name = self.specialization.name_ar if self.specialization else 'Undefined'
         return f"Doctor: {self.user_profile.user.username} ({spec_name})"
     
     class Meta:
