@@ -12,7 +12,8 @@ class SpecializationSerializer(serializers.ModelSerializer):
 
 # 2. Serializer لعرض بيانات الطبيب
 class DoctorProfileSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField(source='user_profile_id', read_only=True)
+    # هذا هو الـ id الحقيقي → وهو نفس user_profile_id لأنّه primary key
+    id = serializers.IntegerField(read_only=True)
 
     specialization = SpecializationSerializer(read_only=True)
     username = serializers.CharField(source='user_profile.user.username', read_only=True)
