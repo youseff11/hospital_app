@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Specialization, Disease, Appointment
-from users.models import DoctorProfile, PatientProfile 
+from users.models import DoctorProfile, PatientProfile
 
 
 # 1. Serializer لعرض بيانات التخصص
@@ -10,9 +10,8 @@ class SpecializationSerializer(serializers.ModelSerializer):
         fields = ['id', 'name_en', 'description_en', 'icon']
 
 
-# 2. Serializer لعرض بيانات الطبيب (مع رقم التليفون)
+# 2. Serializer لعرض بيانات الطبيب
 class DoctorProfileSerializer(serializers.ModelSerializer):
-    # هذا هو الـ id الحقيقي → وهو نفس user_profile_id
     id = serializers.IntegerField(read_only=True)
 
     specialization = SpecializationSerializer(read_only=True)
@@ -24,8 +23,6 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
         source='user_profile.user.get_full_name',
         read_only=True
     )
-
-    # ✅ رقم التليفون من UserProfile
     phone_number = serializers.CharField(
         source='user_profile.phone_number',
         read_only=True
@@ -38,14 +35,17 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
             'username',
             'full_name',
             'specialization',
-            'phone_number',   # ✅ مهم
+            'phone_number',
             'rating',
             'license_number',
         ]
 
 
-# 3. Serializer لعرض بيانات المرض
+# 3. ✅ Disease Serializer (المهم)
 class DiseaseSerializer(serializers.ModelSerializer):
+    # توافق مع Flutter
+    name_ar = serializers.CharField(source='name_en', read_only=True)
+    description = serializers.CharField(source='symptoms', read_only=True)
     specialization_name = serializers.CharField(
         source='specialization.name_en',
         read_only=True
@@ -53,7 +53,12 @@ class DiseaseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Disease
-        fields = ['id', 'name_en', 'specialization_name', 'symptoms']
+        fields = [
+            'id',
+            'name_ar',
+            'description',
+            'specialization_name'
+        ]
 
 
 # 4. Serializer لحجز الموعد
