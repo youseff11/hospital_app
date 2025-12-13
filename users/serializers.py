@@ -1,9 +1,6 @@
-# users/serializers.py
-
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import UserProfile, PatientProfile, DoctorProfile
-from medical_data.models import Specialization
 
 
 # =============================
@@ -11,23 +8,27 @@ from medical_data.models import Specialization
 # =============================
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    phone_number = serializers.CharField(write_only=True)
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password')
+        fields = ('username', 'email', 'password', 'phone_number')
 
     def create(self, validated_data):
-        # دائماً PATIENT تلقائي
+        phone_number = validated_data.pop('phone_number')
+
+        # إنشاء المستخدم
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password']
         )
 
-        # إنشاء UserProfile
+        # إنشاء UserProfile + حفظ رقم التليفون
         profile = UserProfile.objects.create(
             user=user,
-            user_type='PATIENT'
+            user_type='PATIENT',
+            phone_number=phone_number
         )
 
         # إنشاء PatientProfile تلقائياً
