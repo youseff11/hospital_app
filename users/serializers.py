@@ -17,24 +17,21 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         phone_number = validated_data.pop('phone_number')
 
-        # إنشاء المستخدم
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password']
         )
 
-        # إنشاء UserProfile + حفظ رقم التليفون
         profile = UserProfile.objects.create(
             user=user,
             user_type='PATIENT',
             phone_number=phone_number
         )
 
-        # إنشاء PatientProfile تلقائياً
         PatientProfile.objects.create(user_profile=profile)
-
         return user
+
 
 
 # =============================
