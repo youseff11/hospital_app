@@ -13,7 +13,7 @@ from .models import (
 class SpecializationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Specialization
-        fields = ['id', 'name_en', 'description_en', 'icon']
+        fields = ['id', 'name_en','name_ar', 'description_en', 'icon']
 
 # 2. Serializer تسجيل المستخدمين
 class UserRegistrationSerializer(serializers.ModelSerializer):
