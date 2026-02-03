@@ -73,7 +73,8 @@ class DiseaseSerializer(serializers.ModelSerializer):
             'id', 
             'name_ar', 
             'name_en', 
-            'symptoms', 
+            'symptoms_ar', # الوصف بالعربي
+            'symptoms_en', # الوصف بالإنجليزي
             'specialization_name'
         ]
 # 6. Serializer المواعيد

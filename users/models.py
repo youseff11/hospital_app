@@ -87,14 +87,14 @@ class DoctorProfile(models.Model):
         verbose_name_plural = "Doctor Profiles"
 
 
-# 5. الأمراض
+# 5. الأمراض (تم التحديث هنا لإضافة الأعراض بالعربي والإنجليزي)
 class Disease(models.Model):
     name_en = models.CharField(
         max_length=150,
         unique=True,
         verbose_name="Disease Name (EN)"
     )
-    name_ar = models.CharField( # أضفنا هذا الحقل أيضاً للاتساق
+    name_ar = models.CharField(
         max_length=150,
         unique=True,
         verbose_name="اسم المرض (بالعربي)",
@@ -107,8 +107,20 @@ class Disease(models.Model):
         null=True,
         verbose_name="Related Specialization"
     )
+    # الحقل القديم (للاحتياط)
     symptoms = models.TextField(
-        verbose_name="Symptoms",
+        verbose_name="Symptoms (General)",
+        blank=True,
+        null=True
+    )
+    # الحقول الجديدة للترجمة في Flutter
+    symptoms_en = models.TextField(
+        verbose_name="Symptoms (EN)",
+        blank=True,
+        null=True
+    )
+    symptoms_ar = models.TextField(
+        verbose_name="الأعراض (بالعربي)",
         blank=True,
         null=True
     )

@@ -89,7 +89,7 @@ class DiseaseViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = DiseaseSerializer
     permission_classes = [AllowAny]
     filter_backends = [filters.SearchFilter]
-    search_fields = ['name_en', 'specialization__name_en']
+    search_fields = ['name_en', 'name_ar', 'symptoms_en', 'symptoms_ar', 'specialization__name_en','specialization__name_ar']
 
 class DoctorListView(generics.ListAPIView):
     queryset = DoctorProfile.objects.all()

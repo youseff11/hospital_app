@@ -1,5 +1,3 @@
-# users/admin.py
-
 from django.contrib import admin
 from .models import (
     UserProfile, 
@@ -22,7 +20,7 @@ class UserProfileAdmin(admin.ModelAdmin):
 # 2. إدارة التخصصات الطبية
 @admin.register(Specialization)
 class SpecializationAdmin(admin.ModelAdmin):
-    list_display = ('name_en', 'name_ar', 'icon')
+    list_display = ('name_en', 'name_ar', 'icon') # عرض الاسم بالعربي والإنجليزي
     search_fields = ('name_en', 'name_ar')
 
 
@@ -33,7 +31,6 @@ class DoctorProfileAdmin(admin.ModelAdmin):
     list_filter = ('specialization', 'rating')
     search_fields = ('user_profile__user__username',)
 
-    # دالة لجلب اسم المستخدم مباشرة في لوحة التحكم
     def get_username(self, obj):
         return obj.user_profile.user.username
     get_username.short_description = 'Doctor Name'
@@ -50,12 +47,23 @@ class PatientProfileAdmin(admin.ModelAdmin):
     get_username.short_description = 'Patient Name'
 
 
-# 5. إدارة الأمراض
+# 5. إدارة الأمراض (تم تحديث العرض هنا)
 @admin.register(Disease)
 class DiseaseAdmin(admin.ModelAdmin):
-    list_display = ('name_en', 'specialization')
+    # عرض الاسم العربي والإنجليزي والتخصص في القائمة الرئيسية
+    list_display = ('name_en', 'name_ar', 'specialization') 
     list_filter = ('specialization',)
-    search_fields = ('name_en', 'symptoms')
+    search_fields = ('name_en', 'name_ar', 'symptoms_en', 'symptoms_ar')
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name_en', 'name_ar', 'specialization')
+        }),
+        ('Symptoms & Description', {
+            'fields': ('symptoms_en', 'symptoms_ar', 'symptoms'),
+            'description': 'Enter descriptions for both languages.'
+        }),
+    )
 
 
 # 6. إدارة المواعيد
