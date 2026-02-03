@@ -65,15 +65,17 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
 
 # 5. Serializer الأمراض
 class DiseaseSerializer(serializers.ModelSerializer):
-    # توافق مع واجهات Flutter السابقة
-    name_ar = serializers.CharField(source='name_en', read_only=True)
-    description = serializers.CharField(source='symptoms', read_only=True)
     specialization_name = serializers.CharField(source='specialization.name_en', read_only=True)
 
     class Meta:
         model = Disease
-        fields = ['id', 'name_ar', 'description', 'specialization_name']
-
+        fields = [
+            'id', 
+            'name_ar', 
+            'name_en', 
+            'symptoms', 
+            'specialization_name'
+        ]
 # 6. Serializer المواعيد
 class AppointmentSerializer(serializers.ModelSerializer):
     patient_id = serializers.IntegerField(write_only=True)
