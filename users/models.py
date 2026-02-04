@@ -210,8 +210,8 @@ class Prescription(models.Model):
         return f"روشتة: {self.appointment.patient_name}"
 
     class Meta:
-        verbose_name = "الروشتة"
-        verbose_name_plural = "الروشتات"
+        verbose_name = "Prescription"
+        verbose_name_plural = "Prescriptions"
 
 
 # 8. الأدوية داخل الروشتة (Prescription Medicines)
@@ -238,5 +238,5 @@ class PrescriptionMedicine(models.Model):
         return self.medicine_name
 
     class Meta:
-        verbose_name = "دواء الروشتة"
-        verbose_name_plural = "أدوية الروشتات"
+        verbose_name = "Prescription Medicine"
+        verbose_name_plural = "Prescription Medicines"
