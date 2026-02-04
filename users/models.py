@@ -197,23 +197,23 @@ class Prescription(models.Model):
         Appointment, 
         on_delete=models.CASCADE, 
         related_name='prescription',
-        verbose_name="Related Appointment" # تم تحويله للإنجليزية
+        verbose_name="Related Appointment"
     )
     diagnosis = models.TextField(
-        verbose_name="Diagnosis", # تم تحويله للإنجليزية
+        verbose_name="Diagnosis",
         help_text="Enter the case diagnosis here"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # تأكد أن def و class Meta يبدأان بعد 4 مسافات بالضبط من بداية السطر
     def __str__(self):
-        # التعديل الجوهري هنا: الوصول لاسم المريض عبر العلاقة الصحيحة
         try:
-            # المسار: الموعد -> المريض -> ملف المستخدم -> اسم المستخدم
-            return f"Prescription: {self.appointment.patient.user_profile.user.username}"
-        except AttributeError:
-            # في حالة وجود مشكلة في البيانات القديمة
-            return f"Prescription #{self.id}"
+            user = self.appointment.patient.user_profile.user
+            name = user.get_full_name() if user.get_full_name() else user.username
+            return f"Prescription for: {name}"
+        except Exception:
+            return f"Prescription ID: {self.id}"
 
     class Meta:
         verbose_name = "Prescription"
