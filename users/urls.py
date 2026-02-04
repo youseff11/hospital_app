@@ -11,7 +11,8 @@ from .views import (
     DiseaseViewSet, 
     AppointmentViewSet,
     DoctorListView,
-    DoctorsByDiseaseView
+    DoctorsByDiseaseView,
+    PatientListView
 )
 
 # إنشاء الـ Router للـ ViewSets
