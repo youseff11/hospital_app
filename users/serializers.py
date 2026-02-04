@@ -123,6 +123,9 @@ class PatientProfileSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user_profile.user.username', read_only=True)
     phone_number = serializers.CharField(source='user_profile.phone_number', read_only=True)
     address = serializers.CharField(source='user_profile.address', read_only=True)
+    
+    # إضافة هذا الحقل ضروري جداً لأن كود فلاتر يبحث عنه للفلترة
+    user_details = serializers.SerializerMethodField()
 
     class Meta:
         model = PatientProfile
@@ -132,6 +135,14 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             'phone_number', 
             'address',
             'date_of_birth', 
-            'blood_group',     # الحقل الجديد
-            'medical_history'
+            'blood_group', 
+            'medical_history', # تأكد أن هذا الحقل موجود هنا ليظهر في التطبيق
+            'user_details'     # الحقل الجديد لربط الهوية
         ]
+
+    # دالة لجلب بيانات المستخدم لضمان عدم حدوث خطأ "null" في فلاتر
+    def get_user_details(self, obj):
+        return {
+            "username": obj.user_profile.user.username,
+            "email": obj.user_profile.user.email
+        }

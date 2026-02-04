@@ -192,8 +192,19 @@ class AdminUpdateRole(APIView):
 
 # --- التعديل المطلوب لعرض قائمة المرضى ببياناتهم الجديدة ---
 class PatientListView(generics.ListAPIView):
-    queryset = PatientProfile.objects.all()
+    """
+    هذه الـ View تعرض قائمة المرضى للأدمن، 
+    وتعرض بيانات المريض المسجل دخوله فقط إذا لم يكن أدمن.
+    """
     serializer_class = PatientProfileSerializer
-    # ❌ قم بتغيير IsAdminUser إلى IsAuthenticated
-    permission_classes = [IsAuthenticated] # ✅ هكذا سيسمح للمريض برؤية بياناته
+    permission_classes = [IsAuthenticated] 
     authentication_classes = [TokenAuthentication]
+
+    def get_queryset(self):
+        user = self.request.user
+        # التحقق إذا كان المستخدم 'Superuser' أو 'Staff' (أدمن)
+        if user.is_staff or user.is_superuser:
+            return PatientProfile.objects.all()
+        
+        # إذا كان مريض عادي، نعيد له فقط البيانات المرتبطة بحسابه
+        return PatientProfile.objects.filter(user_profile__user=user)
