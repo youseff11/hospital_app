@@ -11,9 +11,10 @@ from .models import (
 
 # 1. Serializer التخصصات
 class SpecializationSerializer(serializers.ModelSerializer):
+    doctors = DoctorProfileSerializer(source='doctorprofile_set', many=True, read_only=True)
     class Meta:
         model = Specialization
-        fields = ['id', 'name_en','name_ar', 'description_en', 'icon']
+        fields = ['id', 'name_en','name_ar', 'description_en', 'icon', 'doctors']
 
 # 2. Serializer تسجيل المستخدمين
 class UserRegistrationSerializer(serializers.ModelSerializer):
