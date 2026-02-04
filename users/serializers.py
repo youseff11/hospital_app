@@ -9,14 +9,45 @@ from .models import (
     Appointment
 )
 
-# 1. Serializer التخصصات
+# 1. بروفايل الطبيب (نقلناه هنا ليكون متاحاً للتخصصات)
+class DoctorProfileSerializer(serializers.ModelSerializer):
+    # نرسل الـ id الحقيقي للمستخدم لسهولة التعامل في Flutter
+    id = serializers.IntegerField(source='user_profile.user.id', read_only=True)
+    full_name = serializers.SerializerMethodField()
+    phone_number = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DoctorProfile
+        fields = [
+            'id', 
+            'full_name', 
+            'phone_number', 
+            'rating', 
+            'license_number'
+        ]
+
+    def get_full_name(self, obj):
+        try:
+            return obj.user_profile.user.username
+        except:
+            return "Unknown"
+
+    def get_phone_number(self, obj):
+        try:
+            return obj.user_profile.phone_number
+        except:
+            return "N/A"
+
+# 2. Serializer التخصصات (يستخدم الآن DoctorProfileSerializer المعرف أعلاه)
 class SpecializationSerializer(serializers.ModelSerializer):
+    # جلب قائمة الأطباء المرتبطين بهذا التخصص مباشرة
     doctors = DoctorProfileSerializer(source='doctorprofile_set', many=True, read_only=True)
+
     class Meta:
         model = Specialization
         fields = ['id', 'name_en','name_ar', 'description_en', 'icon', 'doctors']
 
-# 2. Serializer تسجيل المستخدمين
+# 3. Serializer تسجيل المستخدمين
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     phone_number = serializers.CharField(write_only=True)
@@ -40,43 +71,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         PatientProfile.objects.create(user_profile=profile)
         return user
 
-# 3. Serializer تسجيل الدخول
+# 4. Serializer تسجيل الدخول
 class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
-
-# 4. Serializer بروفايل الطبيب (تم التعديل ليتوافق مع primary_key=True)
-class DoctorProfileSerializer(serializers.ModelSerializer):
-    specialization = SpecializationSerializer(read_only=True)
-    
-    # تعريف الـ id يدوياً ليشير إلى user_profile_id لأنك لغيت الـ id التلقائي في الموديل
-    id = serializers.IntegerField(source='user_profile.id', read_only=True)
-    
-    full_name = serializers.SerializerMethodField()
-    phone_number = serializers.SerializerMethodField()
-
-    class Meta:
-        model = DoctorProfile
-        fields = [
-            'id', 
-            'full_name', 
-            'specialization', 
-            'phone_number', 
-            'rating', 
-            'license_number'
-        ]
-
-    def get_full_name(self, obj):
-        try:
-            return obj.user_profile.user.username
-        except:
-            return "Unknown"
-
-    def get_phone_number(self, obj):
-        try:
-            return obj.user_profile.phone_number
-        except:
-            return "N/A"
 
 # 5. Serializer الأمراض
 class DiseaseSerializer(serializers.ModelSerializer):
@@ -95,7 +93,6 @@ class DiseaseSerializer(serializers.ModelSerializer):
 
 # 6. Serializer المواعيد
 class AppointmentSerializer(serializers.ModelSerializer):
-    # نستخدم user_profile_id لأن المريض والطبيب الـ PK بتاعهم هو الـ profile
     patient_id = serializers.IntegerField(write_only=True)
     doctor_id = serializers.IntegerField(write_only=True)
     patient_name = serializers.CharField(source='patient.user_profile.user.username', read_only=True)
