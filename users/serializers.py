@@ -11,7 +11,7 @@ from .models import (
     PrescriptionMedicine
 )
 
-# 1. بروفايل الطبيب
+# 1. Doctor Profile Serializer
 class DoctorProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user_profile.user.id', read_only=True)
     full_name = serializers.SerializerMethodField()
@@ -38,14 +38,18 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
         return {"name_en": "General", "name_ar": "عام"}
 
     def get_full_name(self, obj):
-        try: return obj.user_profile.user.username
-        except: return "Unknown"
+        try:
+            return obj.user_profile.user.username
+        except:
+            return "Unknown"
 
     def get_phone_number(self, obj):
-        try: return obj.user_profile.phone_number
-        except: return "N/A"
+        try:
+            return obj.user_profile.phone_number
+        except:
+            return "N/A"
 
-# 2. Serializer التخصصات
+# 2. Specialization Serializer
 class SpecializationSerializer(serializers.ModelSerializer):
     doctors = DoctorProfileSerializer(source='doctorprofile_set', many=True, read_only=True)
 
@@ -53,7 +57,7 @@ class SpecializationSerializer(serializers.ModelSerializer):
         model = Specialization
         fields = ['id', 'name_en','name_ar', 'description_en', 'icon', 'doctors']
 
-# 3. Serializer تسجيل المستخدمين
+# 3. User Registration Serializer
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     phone_number = serializers.CharField(write_only=True)
@@ -77,12 +81,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         PatientProfile.objects.create(user_profile=profile)
         return user
 
-# 4. Serializer تسجيل الدخول
+# 4. User Login Serializer
 class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
-# 5. Serializer الأمراض
+# 5. Disease Serializer
 class DiseaseSerializer(serializers.ModelSerializer):
     specialization_name_ar = serializers.CharField(source='specialization.name_ar', read_only=True)
     specialization_name_en = serializers.CharField(source='specialization.name_en', read_only=True)
@@ -95,10 +99,14 @@ class DiseaseSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {'specialization': {'required': False, 'allow_null': True}}
 
-# 6. Serializer المواعيد
+# 6. Appointment Serializer
 class AppointmentSerializer(serializers.ModelSerializer):
-    patient_id = serializers.IntegerField(write_only=True)
-    doctor_id = serializers.IntegerField(write_only=True)
+    patient_id = serializers.PrimaryKeyRelatedField(
+        queryset=PatientProfile.objects.all(), source='patient', write_only=True
+    )
+    doctor_id = serializers.PrimaryKeyRelatedField(
+        queryset=DoctorProfile.objects.all(), source='doctor', write_only=True
+    )
     patient_name = serializers.CharField(source='patient.user_profile.user.username', read_only=True)
     doctor_name = serializers.CharField(source='doctor.user_profile.user.username', read_only=True)
 
@@ -110,7 +118,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['patient_name', 'doctor_name']
 
-# 7. بروفايل المريض
+# 7. Patient Profile Serializer
 class PatientProfileSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user_profile.user.username', read_only=True)
     phone_number = serializers.CharField(source='user_profile.phone_number', read_only=True)
@@ -130,14 +138,13 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             "email": obj.user_profile.user.email
         }
 
-# 8. Serializer الأدوية (تم التعديل لاستخدام حقل instructions الموحد)
+# 8. Prescription Medicine Serializer
 class PrescriptionMedicineSerializer(serializers.ModelSerializer):
     class Meta:
         model = PrescriptionMedicine
-        # دمجنا الحقول هنا لتصبح instructions
         fields = ['id', 'medicine_name', 'dosage', 'duration', 'instructions']
 
-# 9. Serializer الروشتة الكاملة
+# 9. Prescription Serializer (المحدث بالكامل)
 class PrescriptionSerializer(serializers.ModelSerializer):
     medicines = PrescriptionMedicineSerializer(many=True)
     patient_name = serializers.CharField(source='appointment.patient.user_profile.user.username', read_only=True)
@@ -152,11 +159,22 @@ class PrescriptionSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        # استخراج الأدوية من البيانات المرسلة
         medicines_data = validated_data.pop('medicines')
-        # إنشاء الروشتة
         prescription = Prescription.objects.create(**validated_data)
-        # إنشاء الأدوية المرتبطة
         for medicine_data in medicines_data:
             PrescriptionMedicine.objects.create(prescription=prescription, **medicine_data)
         return prescription
+
+    def update(self, instance, validated_data):
+        # تحديث بيانات الروشتة الأساسية
+        medicines_data = validated_data.pop('medicines', None)
+        instance.diagnosis = validated_data.get('diagnosis', instance.diagnosis)
+        instance.save()
+
+        # تحديث الأدوية (حذف القديم وإضافة الجديد لضمان المزامنة)
+        if medicines_data is not None:
+            instance.medicines.all().delete()
+            for medicine_data in medicines_data:
+                PrescriptionMedicine.objects.create(prescription=instance, **medicine_data)
+        
+        return instance

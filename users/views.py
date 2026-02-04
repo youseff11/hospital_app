@@ -9,19 +9,18 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from .models import Prescription, PrescriptionMedicine
-from .serializers import PrescriptionSerializer
 
-# استيراد الموديلات والـ Serializers الأخرى
+# استيراد الموديلات والـ Serializers
 from .models import (
     UserProfile, PatientProfile, DoctorProfile, 
-    Specialization, Disease, Appointment
+    Specialization, Disease, Appointment, 
+    Prescription, PrescriptionMedicine
 )
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer,
     SpecializationSerializer, DiseaseSerializer, 
     AppointmentSerializer, DoctorProfileSerializer,
-    PatientProfileSerializer
+    PatientProfileSerializer, PrescriptionSerializer
 )
 
 # ================================
@@ -222,12 +221,15 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        profile = user.userprofile
+        # التحقق من وجود البروفايل أولاً لتجنب الأخطاء
+        profile = getattr(user, 'userprofile', None)
+        if not profile:
+            return Prescription.objects.none()
         
-        # تحسين الأداء بجلب الأدوية والبيانات المرتبطة في استعلام واحد
+        # تحسين الأداء بجلب البيانات المرتبطة واليوزر لتقليل الـ Queries
         queryset = Prescription.objects.select_related(
-            'appointment__doctor__user_profile', 
-            'appointment__patient__user_profile'
+            'appointment__doctor__user_profile__user', 
+            'appointment__patient__user_profile__user'
         ).prefetch_related('medicines')
 
         if profile.user_type == 'DOCTOR':
@@ -242,8 +244,14 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
         if self.request.user.userprofile.user_type != 'DOCTOR':
             raise PermissionDenied("Only doctors can issue prescriptions.")
         
-        # 2. التأكد من عدم وجود روشتة سابقة لهذا الموعد (OneToOneField)
+        # 2. التأكد من أن الموعد يخص هذا الطبيب فعلياً (أمان إضافي)
         appointment_id = self.request.data.get('appointment')
+        appointment = get_object_or_404(Appointment, id=appointment_id)
+        
+        if appointment.doctor.user_profile.user != self.request.user:
+            raise PermissionDenied("You can only issue prescriptions for your own appointments.")
+
+        # 3. التأكد من عدم وجود روشتة سابقة لهذا الموعد
         if Prescription.objects.filter(appointment_id=appointment_id).exists():
             raise ValidationError({"error": "This appointment already has a prescription."})
         
@@ -252,7 +260,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='by-appointment/(?P<app_id>\d+)')
     def by_appointment(self, request, app_id=None):
         """جلب الروشتة الخاصة بموعد معين مع الأدوية"""
-        # استخدام prefetch_related لجلب الأدوية بكفاءة
+        # جلب الروشتة مع الأدوية في استعلام واحد
         prescription = get_object_or_404(
             Prescription.objects.prefetch_related('medicines'), 
             appointment_id=app_id

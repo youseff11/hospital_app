@@ -197,22 +197,27 @@ class Prescription(models.Model):
         Appointment, 
         on_delete=models.CASCADE, 
         related_name='prescription',
-        verbose_name="الموعد المرتبط"
+        verbose_name="Related Appointment" # تم تحويله للإنجليزية
     )
     diagnosis = models.TextField(
-        verbose_name="التشخيص (Diagnosis)",
-        help_text="اكتب تشخيص الحالة هنا بالعربية أو الإنجليزية"
+        verbose_name="Diagnosis", # تم تحويله للإنجليزية
+        help_text="Enter the case diagnosis here"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"روشتة: {self.appointment.patient_name}"
+        # التعديل الجوهري هنا: الوصول لاسم المريض عبر العلاقة الصحيحة
+        try:
+            # المسار: الموعد -> المريض -> ملف المستخدم -> اسم المستخدم
+            return f"Prescription: {self.appointment.patient.user_profile.user.username}"
+        except AttributeError:
+            # في حالة وجود مشكلة في البيانات القديمة
+            return f"Prescription #{self.id}"
 
     class Meta:
         verbose_name = "Prescription"
         verbose_name_plural = "Prescriptions"
-
 
 # 8. الأدوية داخل الروشتة (Prescription Medicines)
 class PrescriptionMedicine(models.Model):
