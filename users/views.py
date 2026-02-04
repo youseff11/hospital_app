@@ -192,11 +192,8 @@ class AdminUpdateRole(APIView):
 
 # --- التعديل المطلوب لعرض قائمة المرضى ببياناتهم الجديدة ---
 class PatientListView(generics.ListAPIView):
-    """
-    هذه الـ View تعرض قائمة المرضى وتستخدم الـ Serializer المحدث
-    الذي يحتوي على Blood Group و Date of Birth.
-    """
     queryset = PatientProfile.objects.all()
     serializer_class = PatientProfileSerializer
-    permission_classes = [IsAdminUser] # للقائمة الإدارية
+    # ❌ قم بتغيير IsAdminUser إلى IsAuthenticated
+    permission_classes = [IsAuthenticated] # ✅ هكذا سيسمح للمريض برؤية بياناته
     authentication_classes = [TokenAuthentication]
