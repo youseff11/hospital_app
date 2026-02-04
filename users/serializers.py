@@ -9,12 +9,13 @@ from .models import (
     Appointment
 )
 
-# 1. بروفايل الطبيب (نقلناه هنا ليكون متاحاً للتخصصات)
+# 1. بروفايل الطبيب (تمت إضافة حقل التخصص هنا)
 class DoctorProfileSerializer(serializers.ModelSerializer):
-    # نرسل الـ id الحقيقي للمستخدم لسهولة التعامل في Flutter
     id = serializers.IntegerField(source='user_profile.user.id', read_only=True)
     full_name = serializers.SerializerMethodField()
     phone_number = serializers.SerializerMethodField()
+    # التعديل الجديد: جلب اسم التخصص مباشرة من موديل Specialization
+    specialization_name = serializers.CharField(source='specialization.name_en', read_only=True)
 
     class Meta:
         model = DoctorProfile
@@ -23,7 +24,8 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
             'full_name', 
             'phone_number', 
             'rating', 
-            'license_number'
+            'license_number',
+            'specialization_name' # تأكد من إضافة الحقل هنا ليظهر في الـ JSON
         ]
 
     def get_full_name(self, obj):
@@ -38,9 +40,8 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
         except:
             return "N/A"
 
-# 2. Serializer التخصصات (يستخدم الآن DoctorProfileSerializer المعرف أعلاه)
+# 2. Serializer التخصصات
 class SpecializationSerializer(serializers.ModelSerializer):
-    # جلب قائمة الأطباء المرتبطين بهذا التخصص مباشرة
     doctors = DoctorProfileSerializer(source='doctorprofile_set', many=True, read_only=True)
 
     class Meta:
