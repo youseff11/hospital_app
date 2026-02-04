@@ -6,10 +6,11 @@ from .views import (
     # User Views
     RegisterView, LoginView, DoctorProfileView,
     AdminListUsers, AdminDeleteUser, AdminUpdateRole,
-    # Medical Views (انتقلت هنا بعد الدمج)
+    # Medical Views
     SpecializationViewSet, 
     DiseaseViewSet, 
     AppointmentViewSet,
+    PrescriptionViewSet, # استيراد الـ ViewSet الجديد
     DoctorListView,
     DoctorsByDiseaseView,
     PatientListView
@@ -20,9 +21,10 @@ router = DefaultRouter()
 router.register(r'specializations', SpecializationViewSet, basename='specialization')
 router.register(r'diseases', DiseaseViewSet, basename='disease')
 router.register(r'appointments', AppointmentViewSet, basename='appointment')
+router.register(r'prescriptions', PrescriptionViewSet, basename='prescription') # إضافة مسار الروشتات
 
 urlpatterns = [
-    # 1. الموجه التلقائي (Specializations, Diseases, Appointments)
+    # 1. الموجه التلقائي (Specializations, Diseases, Appointments, Prescriptions)
     path('', include(router.urls)),
 
     # 2. مسارات الحسابات (Auth)

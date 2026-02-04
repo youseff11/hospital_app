@@ -5,7 +5,9 @@ from .models import (
     PatientProfile, 
     Specialization, 
     Disease, 
-    Appointment
+    Appointment,
+    Prescription,
+    PrescriptionMedicine
 )
 
 # 1. إدارة ملف تعريف المستخدم الأساسي
@@ -75,3 +77,26 @@ class AppointmentAdmin(admin.ModelAdmin):
         'patient__user_profile__user__username',
         'doctor__user_profile__user__username'
     )
+    
+# 7. إدارة الأدوية كجزء مدمج (Inline)
+class MedicineInline(admin.TabularInline):
+    model = PrescriptionMedicine
+    extra = 1  # يظهر حقل واحد فارغ افتراضياً لإضافة دواء جديد
+
+# 8. إدارة الروشتات
+@admin.register(Prescription)
+class PrescriptionAdmin(admin.ModelAdmin):
+    # list_display تساعدك في رؤية المريض والتاريخ من القائمة الرئيسية للروشتات
+    list_display = ('get_patient', 'get_doctor', 'created_at')
+    inlines = [MedicineInline]
+    search_fields = ('appointment__patient__user_profile__user__username',)
+
+    # دالة لجلب اسم المريض في القائمة
+    def get_patient(self, obj):
+        return obj.appointment.patient.user_profile.user.username
+    get_patient.short_description = 'Patient Name'
+
+    # دالة لجلب اسم الطبيب في القائمة
+    def get_doctor(self, obj):
+        return obj.appointment.doctor.user_profile.user.username
+    get_doctor.short_description = 'Doctor Name'

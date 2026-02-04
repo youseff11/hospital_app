@@ -6,7 +6,9 @@ from .models import (
     DoctorProfile, 
     Specialization, 
     Disease, 
-    Appointment
+    Appointment,
+    Prescription,
+    PrescriptionMedicine
 )
 
 # 1. بروفايل الطبيب
@@ -147,3 +149,34 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             "username": obj.user_profile.user.username,
             "email": obj.user_profile.user.email
         }
+
+# 8. Serializer الأدوية (داخل الروشتة)
+class PrescriptionMedicineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PrescriptionMedicine
+        fields = ['id', 'medicine_name', 'dosage', 'duration', 'instruction_ar', 'instruction_en']
+
+# 9. Serializer الروشتة الكاملة
+class PrescriptionSerializer(serializers.ModelSerializer):
+    # ربط الأدوية بالروشتة (علاقة متداخلة)
+    medicines = PrescriptionMedicineSerializer(many=True)
+    
+    # حقول إضافية للقراءة فقط لعرضها في التطبيق
+    patient_name = serializers.CharField(source='appointment.patient.user_profile.user.username', read_only=True)
+    doctor_name = serializers.CharField(source='appointment.doctor.user_profile.user.username', read_only=True)
+    appointment_date = serializers.DateTimeField(source='appointment.appointment_date', read_only=True)
+
+    class Meta:
+        model = Prescription
+        fields = [
+            'id', 'appointment', 'diagnosis', 'medicines', 
+            'patient_name', 'doctor_name', 'appointment_date', 'created_at'
+        ]
+
+    # دالة مخصصة لحفظ الروشتة مع أدويتها في عملية واحدة
+    def create(self, validated_data):
+        medicines_data = validated_data.pop('medicines')
+        prescription = Prescription.objects.create(**validated_data)
+        for medicine_data in medicines_data:
+            PrescriptionMedicine.objects.create(prescription=prescription, **medicine_data)
+        return prescription

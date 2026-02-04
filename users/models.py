@@ -190,3 +190,43 @@ class Appointment(models.Model):
         verbose_name = "Appointment"
         verbose_name_plural = "Appointments"
         ordering = ['appointment_date']
+
+# 7. الروشتة الطبية (Prescription)
+class Prescription(models.Model):
+    appointment = models.OneToOneField(
+        Appointment, 
+        on_delete=models.CASCADE, 
+        related_name='prescription',
+        verbose_name="الموعد المرتبط"
+    )
+    diagnosis = models.TextField(
+        verbose_name="التشخيص (Diagnosis)",
+        help_text="اكتب تشخيص الحالة هنا"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"روشتة المريض: {self.appointment.patient.user_profile.user.username}"
+
+    class Meta:
+        verbose_name = "Prescription"
+        verbose_name_plural = "Prescriptions"
+
+
+# 8. الأدوية داخل الروشتة (Prescription Medicines)
+class PrescriptionMedicine(models.Model):
+    prescription = models.ForeignKey(
+        Prescription, 
+        on_delete=models.CASCADE, 
+        related_name='medicines',
+        verbose_name="الروشتة"
+    )
+    medicine_name = models.CharField(max_length=200, verbose_name="اسم الدواء")
+    dosage = models.CharField(max_length=100, verbose_name="الجرعة", help_text="مثلاً: 3 مرات يومياً")
+    duration = models.CharField(max_length=100, verbose_name="المدة", help_text="مثلاً: لمدة أسبوع")
+    instruction_ar = models.TextField(blank=True, null=True, verbose_name="تعليمات بالعربي")
+    instruction_en = models.TextField(blank=True, null=True, verbose_name="Instructions (EN)")
+
+    def __str__(self):
+        return self.medicine_name
