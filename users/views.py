@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.decorators import action
 from rest_framework.authtoken.models import Token
+from rest_framework.authentication import TokenAuthentication # إضافة التوثيق بالتوكن
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
@@ -79,17 +80,29 @@ class LoginView(APIView):
 # 2️⃣ الأطباء والتخصصات (Medical Data)
 # ================================
 
-class SpecializationViewSet(viewsets.ReadOnlyModelViewSet):
+class SpecializationViewSet(viewsets.ModelViewSet): # تعديل للسماح بالإدارة
     queryset = Specialization.objects.all()
     serializer_class = SpecializationSerializer
-    permission_classes = [AllowAny]
+    authentication_classes = [TokenAuthentication]
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAdminUser()]
 
-class DiseaseViewSet(viewsets.ReadOnlyModelViewSet):
+# تعديل DiseaseViewSet ليدعم الـ POST (الإضافة) من تطبيق فلاتر
+class DiseaseViewSet(viewsets.ModelViewSet): 
     queryset = Disease.objects.all()
     serializer_class = DiseaseSerializer
-    permission_classes = [AllowAny]
     filter_backends = [filters.SearchFilter]
     search_fields = ['name_en', 'name_ar', 'symptoms_en', 'symptoms_ar', 'specialization__name_en','specialization__name_ar']
+    authentication_classes = [TokenAuthentication] # مهم جداً لقراءة التوكن
+
+    def get_permissions(self):
+        # السماح للجميع برؤية الأمراض، ولكن الإضافة (POST) للأدمن فقط
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAdminUser()]
 
 class DoctorListView(generics.ListAPIView):
     queryset = DoctorProfile.objects.all()
@@ -101,6 +114,7 @@ class DoctorListView(generics.ListAPIView):
 class DoctorProfileView(generics.RetrieveAPIView):
     serializer_class = DoctorProfileSerializer
     permission_classes = [IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
 
     def get_object(self):
         return get_object_or_404(DoctorProfile, user_profile__user=self.request.user)
@@ -120,6 +134,7 @@ class DoctorsByDiseaseView(generics.ListAPIView):
 class AppointmentViewSet(viewsets.ModelViewSet):
     serializer_class = AppointmentSerializer
     permission_classes = [IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
 
     def get_queryset(self):
         user = self.request.user
@@ -143,6 +158,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
 
 class AdminListUsers(APIView):
     permission_classes = [IsAdminUser]
+    authentication_classes = [TokenAuthentication]
 
     def get(self, request):
         profiles = UserProfile.objects.select_related("user").all()
@@ -156,6 +172,7 @@ class AdminListUsers(APIView):
 
 class AdminDeleteUser(APIView):
     permission_classes = [IsAdminUser]
+    authentication_classes = [TokenAuthentication]
 
     def delete(self, request, user_id):
         user = get_object_or_404(User, id=user_id)
@@ -164,6 +181,7 @@ class AdminDeleteUser(APIView):
 
 class AdminUpdateRole(APIView):
     permission_classes = [IsAdminUser]
+    authentication_classes = [TokenAuthentication]
 
     def put(self, request, user_id):
         profile = get_object_or_404(UserProfile, user_id=user_id)
