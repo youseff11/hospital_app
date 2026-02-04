@@ -82,7 +82,7 @@ class UserLoginSerializer(serializers.Serializer):
 
 # 5. Serializer الأمراض (تم التعديل لترجمة التخصص)
 class DiseaseSerializer(serializers.ModelSerializer):
-    # جلب الاسمين العربي والإنجليزي للتخصص المرتبط بالمرض
+    # حقول للقراءة فقط لعرض الأسماء في Flutter
     specialization_name_ar = serializers.CharField(source='specialization.name_ar', read_only=True)
     specialization_name_en = serializers.CharField(source='specialization.name_en', read_only=True)
 
@@ -94,9 +94,14 @@ class DiseaseSerializer(serializers.ModelSerializer):
             'name_en', 
             'symptoms_ar', 
             'symptoms_en', 
-            'specialization_name_ar', # الحقل الجديد
-            'specialization_name_en'  # الحقل الجديد
+            'specialization',         # أضفنا هذا الحقل لاستقبال الـ ID من التطبيق
+            'specialization_name_ar', 
+            'specialization_name_en'
         ]
+        # لجعل التخصص اختيارياً أو التأكد من التعامل معه
+        extra_kwargs = {
+            'specialization': {'required': False, 'allow_null': True}
+        }
 
 # 6. Serializer المواعيد
 class AppointmentSerializer(serializers.ModelSerializer):
