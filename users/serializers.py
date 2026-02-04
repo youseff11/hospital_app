@@ -9,14 +9,11 @@ from .models import (
     Appointment
 )
 
-# 1. بروفايل الطبيب (تمت إضافة جلب بيانات التخصص باللغتين)
+# 1. بروفايل الطبيب
 class DoctorProfileSerializer(serializers.ModelSerializer):
-    # نرسل الـ id الحقيقي للمستخدم لسهولة التعامل في Flutter
     id = serializers.IntegerField(source='user_profile.user.id', read_only=True)
     full_name = serializers.SerializerMethodField()
     phone_number = serializers.SerializerMethodField()
-    
-    # التعديل الجديد: جلب بيانات التخصص كاملة (عربي وإنجليزي)
     specialization_data = serializers.SerializerMethodField()
 
     class Meta:
@@ -27,7 +24,7 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
             'phone_number', 
             'rating', 
             'license_number',
-            'specialization_data' # الحقل الجديد
+            'specialization_data'
         ]
 
     def get_specialization_data(self, obj):
@@ -39,20 +36,15 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
         return {"name_en": "General", "name_ar": "عام"}
 
     def get_full_name(self, obj):
-        try:
-            return obj.user_profile.user.username
-        except:
-            return "Unknown"
+        try: return obj.user_profile.user.username
+        except: return "Unknown"
 
     def get_phone_number(self, obj):
-        try:
-            return obj.user_profile.phone_number
-        except:
-            return "N/A"
+        try: return obj.user_profile.phone_number
+        except: return "N/A"
 
 # 2. Serializer التخصصات
 class SpecializationSerializer(serializers.ModelSerializer):
-    # جلب قائمة الأطباء المرتبطين بهذا التخصص مباشرة
     doctors = DoctorProfileSerializer(source='doctorprofile_set', many=True, read_only=True)
 
     class Meta:
@@ -88,9 +80,11 @@ class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
-# 5. Serializer الأمراض
+# 5. Serializer الأمراض (تم التعديل لترجمة التخصص)
 class DiseaseSerializer(serializers.ModelSerializer):
-    specialization_name = serializers.CharField(source='specialization.name_en', read_only=True)
+    # جلب الاسمين العربي والإنجليزي للتخصص المرتبط بالمرض
+    specialization_name_ar = serializers.CharField(source='specialization.name_ar', read_only=True)
+    specialization_name_en = serializers.CharField(source='specialization.name_en', read_only=True)
 
     class Meta:
         model = Disease
@@ -100,7 +94,8 @@ class DiseaseSerializer(serializers.ModelSerializer):
             'name_en', 
             'symptoms_ar', 
             'symptoms_en', 
-            'specialization_name'
+            'specialization_name_ar', # الحقل الجديد
+            'specialization_name_en'  # الحقل الجديد
         ]
 
 # 6. Serializer المواعيد
