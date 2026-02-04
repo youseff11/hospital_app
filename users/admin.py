@@ -69,11 +69,16 @@ class DiseaseAdmin(admin.ModelAdmin):
         }),
     )
 
+class PrescriptionInline(admin.StackedInline):
+    model = Prescription
+    extra = 0  # لعدم إضافة روشتة فارغة تلقائياً
+    show_change_link = True # رابط للدخول على تفاصيل الروشتة
 
 # 6. Appointments Management
 @admin.register(Appointment)
 class AppointmentAdmin(admin.ModelAdmin):
     list_display = ('get_patient_name', 'get_doctor_name', 'appointment_date', 'status')
+    inlines = [PrescriptionInline]
     list_filter = ('status', 'appointment_date')
     search_fields = (
         'patient__user_profile__user__username',
@@ -101,13 +106,22 @@ class MedicineInline(admin.TabularInline):
 # 8. Prescription Management
 @admin.register(Prescription)
 class PrescriptionAdmin(admin.ModelAdmin):
-    list_display = ('get_patient', 'get_doctor', 'created_at')
+    # أضفنا التاريخ ورقم الموعد في العرض السريع
+    list_display = ('id', 'get_patient', 'get_doctor', 'appointment_id', 'created_at')
+    list_filter = ('created_at',) # فلترة حسب تاريخ الإصدار
     inlines = [MedicineInline]
-    search_fields = ('appointment__patient__user_profile__user__username',)
+    
+    # تحويل اختيار الموعد إلى نافذة بحث بدلاً من قائمة منسدلة عملاقة
+    raw_id_fields = ('appointment',) 
+    
+    search_fields = (
+        'appointment__patient__user_profile__user__username',
+        'appointment__doctor__user_profile__user__username',
+        'diagnosis'
+    )
     readonly_fields = ('created_at', 'updated_at')
 
     def get_patient(self, obj):
-        # تم تعديل طريقة الوصول هنا لتجنب الـ AttributeError
         try:
             return obj.appointment.patient.user_profile.user.username
         except:

@@ -193,10 +193,10 @@ class Appointment(models.Model):
 
 # 7. الروشتة الطبية (Prescription)
 class Prescription(models.Model):
-    appointment = models.OneToOneField(
+    appointment = models.ForeignKey(
         Appointment, 
         on_delete=models.CASCADE, 
-        related_name='prescription',
+        related_name='prescriptions', 
         verbose_name="Related Appointment"
     )
     diagnosis = models.TextField(
@@ -206,18 +206,18 @@ class Prescription(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    # تأكد أن def و class Meta يبدأان بعد 4 مسافات بالضبط من بداية السطر
     def __str__(self):
         try:
             user = self.appointment.patient.user_profile.user
             name = user.get_full_name() if user.get_full_name() else user.username
-            return f"Prescription for: {name}"
+            return f"Prescription for: {name} - {self.created_at.strftime('%Y-%m-%d')}"
         except Exception:
             return f"Prescription ID: {self.id}"
 
     class Meta:
         verbose_name = "Prescription"
         verbose_name_plural = "Prescriptions"
+        ordering = ['-created_at']
 
 # 8. الأدوية داخل الروشتة (Prescription Medicines)
 class PrescriptionMedicine(models.Model):

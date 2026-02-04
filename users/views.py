@@ -210,23 +210,16 @@ class PatientListView(generics.ListAPIView):
 # ================================
 
 class PrescriptionViewSet(viewsets.ModelViewSet):
-    """
-    إدارة الروشتات: 
-    - الطبيب: يمكنه إنشاء ورؤية الروشتات الخاصة بمرضاه.
-    - المريض: يمكنه رؤية الروشتات الخاصة به فقط.
-    """
     serializer_class = PrescriptionSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [TokenAuthentication]
 
     def get_queryset(self):
         user = self.request.user
-        # التحقق من وجود البروفايل أولاً لتجنب الأخطاء
         profile = getattr(user, 'userprofile', None)
         if not profile:
             return Prescription.objects.none()
         
-        # تحسين الأداء بجلب البيانات المرتبطة واليوزر لتقليل الـ Queries
         queryset = Prescription.objects.select_related(
             'appointment__doctor__user_profile__user', 
             'appointment__patient__user_profile__user'
@@ -244,35 +237,34 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
         if self.request.user.userprofile.user_type != 'DOCTOR':
             raise PermissionDenied("Only doctors can issue prescriptions.")
         
-        # 2. التأكد من أن الموعد يخص هذا الطبيب فعلياً (أمان إضافي)
         appointment_id = self.request.data.get('appointment')
         appointment = get_object_or_404(Appointment, id=appointment_id)
         
+        # 2. التأكد من أن الموعد يخص هذا الطبيب
         if appointment.doctor.user_profile.user != self.request.user:
             raise PermissionDenied("You can only issue prescriptions for your own appointments.")
 
-        # 3. التأكد من عدم وجود روشتة سابقة لهذا الموعد
-        if Prescription.objects.filter(appointment_id=appointment_id).exists():
-            raise ValidationError({"error": "This appointment already has a prescription."})
-        
+        # تم حذف شرط التحقق من وجود روشتة سابقة (Validation) للسماح بالتعدد ✅
         serializer.save()
 
     @action(detail=False, methods=['get'], url_path='by-appointment/(?P<app_id>\d+)')
     def by_appointment(self, request, app_id=None):
-        """جلب الروشتة الخاصة بموعد معين مع الأدوية"""
-        # جلب الروشتة مع الأدوية في استعلام واحد
-        prescription = get_object_or_404(
-            Prescription.objects.prefetch_related('medicines'), 
-            appointment_id=app_id
-        )
+        """جلب كل الروشتات الخاصة بموعد معين"""
+        # نستخدم filter بدلاً من get_object_or_404 لأننا نتوقع "قائمة"
+        prescriptions = Prescription.objects.filter(appointment_id=app_id).prefetch_related('medicines')
+
+        if not prescriptions.exists():
+            return Response({"error": "No prescriptions found for this appointment."}, status=status.HTTP_404_NOT_FOUND)
         
-        # التحقق من الصلاحية (أن المستخدم هو طبيب الموعد أو مريض الموعد)
+        # التحقق من الصلاحية على أول روشتة (لأن كلهم لنفس الموعد)
+        first_p = prescriptions.first()
         user_profile = request.user.userprofile
-        is_doctor = user_profile == prescription.appointment.doctor.user_profile
-        is_patient = user_profile == prescription.appointment.patient.user_profile
+        is_doctor = user_profile == first_p.appointment.doctor.user_profile
+        is_patient = user_profile == first_p.appointment.patient.user_profile
 
         if not (is_doctor or is_patient):
             return Response({"error": "Unauthorized Access"}, status=status.HTTP_403_FORBIDDEN)
             
-        serializer = self.get_serializer(prescription)
+        # نرسل many=True لأننا بنعرض قائمة روشتات
+        serializer = self.get_serializer(prescriptions, many=True)
         return Response(serializer.data)

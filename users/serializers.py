@@ -39,7 +39,6 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
 
     def get_full_name(self, obj):
         try:
-            # يفضل استخدام get_full_name إذا كان متاحاً أو الـ username
             user = obj.user_profile.user
             return user.get_full_name() if user.get_full_name() else user.username
         except:
@@ -140,7 +139,7 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             "email": obj.user_profile.user.email
         }
 
-# 8. Prescription Medicine Serializer (تمت إضافة allow_blank لضمان عدم حدوث خطأ 400)
+# 8. Prescription Medicine Serializer
 class PrescriptionMedicineSerializer(serializers.ModelSerializer):
     class Meta:
         model = PrescriptionMedicine
@@ -151,7 +150,7 @@ class PrescriptionMedicineSerializer(serializers.ModelSerializer):
             'duration': {'required': False, 'allow_blank': True},
         }
 
-# 9. Prescription Serializer (المحسن للتعامل مع الـ nested objects)
+# 9. Prescription Serializer (المتوافق مع تعدد الروشتات)
 class PrescriptionSerializer(serializers.ModelSerializer):
     medicines = PrescriptionMedicineSerializer(many=True)
     patient_name = serializers.SerializerMethodField()
@@ -180,11 +179,10 @@ class PrescriptionSerializer(serializers.ModelSerializer):
             return "Dr. Unknown"
 
     def create(self, validated_data):
-        # استخراج الأدوية يدوياً
         medicines_data = validated_data.pop('medicines', [])
-        # إنشاء الروشتة
+        # إنشاء الروشتة - الآن ForeignKey سيسمح بإنشاء سجلات متعددة لنفس الموعد
         prescription = Prescription.objects.create(**validated_data)
-        # إنشاء الأدوية وربطها بالروشتة
+        
         for medicine_data in medicines_data:
             PrescriptionMedicine.objects.create(prescription=prescription, **medicine_data)
         return prescription
@@ -192,10 +190,12 @@ class PrescriptionSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         medicines_data = validated_data.pop('medicines', None)
         instance.diagnosis = validated_data.get('diagnosis', instance.diagnosis)
+        # ملاحظة: إذا تم تحديث الـ appointment، سيتم قبوله هنا أيضاً
+        instance.appointment = validated_data.get('appointment', instance.appointment)
         instance.save()
 
         if medicines_data is not None:
-            # مسح الأدوية القديمة وإضافة الجديدة (تبسيطاً للمزامنة)
+            # مسح الأدوية القديمة وإضافة الجديدة المرتبطة بهذه الروشتة تحديداً
             instance.medicines.all().delete()
             for medicine_data in medicines_data:
                 PrescriptionMedicine.objects.create(prescription=instance, **medicine_data)
