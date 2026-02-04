@@ -44,13 +44,15 @@ class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
-# 4. Serializer بروفايل الطبيب (حل مشكلة الاسم لـ Flutter)
+# 4. Serializer بروفايل الطبيب (تم التعديل ليتوافق مع primary_key=True)
 class DoctorProfileSerializer(serializers.ModelSerializer):
     specialization = SpecializationSerializer(read_only=True)
     
-    # جلب الاسم مباشرة لسهولة التعامل في Flutter
-    full_name = serializers.CharField(source='user_profile.user.username', read_only=True)
-    phone_number = serializers.CharField(source='user_profile.phone_number', read_only=True)
+    # تعريف الـ id يدوياً ليشير إلى user_profile_id لأنك لغيت الـ id التلقائي في الموديل
+    id = serializers.IntegerField(source='user_profile.id', read_only=True)
+    
+    full_name = serializers.SerializerMethodField()
+    phone_number = serializers.SerializerMethodField()
 
     class Meta:
         model = DoctorProfile
@@ -63,6 +65,18 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
             'license_number'
         ]
 
+    def get_full_name(self, obj):
+        try:
+            return obj.user_profile.user.username
+        except:
+            return "Unknown"
+
+    def get_phone_number(self, obj):
+        try:
+            return obj.user_profile.phone_number
+        except:
+            return "N/A"
+
 # 5. Serializer الأمراض
 class DiseaseSerializer(serializers.ModelSerializer):
     specialization_name = serializers.CharField(source='specialization.name_en', read_only=True)
@@ -73,12 +87,14 @@ class DiseaseSerializer(serializers.ModelSerializer):
             'id', 
             'name_ar', 
             'name_en', 
-            'symptoms_ar', # الوصف بالعربي
-            'symptoms_en', # الوصف بالإنجليزي
+            'symptoms_ar', 
+            'symptoms_en', 
             'specialization_name'
         ]
+
 # 6. Serializer المواعيد
 class AppointmentSerializer(serializers.ModelSerializer):
+    # نستخدم user_profile_id لأن المريض والطبيب الـ PK بتاعهم هو الـ profile
     patient_id = serializers.IntegerField(write_only=True)
     doctor_id = serializers.IntegerField(write_only=True)
     patient_name = serializers.CharField(source='patient.user_profile.user.username', read_only=True)
