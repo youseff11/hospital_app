@@ -121,8 +121,3 @@ class PrescriptionAdmin(admin.ModelAdmin):
         }),
     )
 
-# 9. تسجيل الأدوية بشكل منفصل (اختياري)
-@admin.register(PrescriptionMedicine)
-class PrescriptionMedicineAdmin(admin.ModelAdmin):
-    list_display = ('medicine_name', 'prescription', 'dosage')
-    search_fields = ('medicine_name',)
