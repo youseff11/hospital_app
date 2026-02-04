@@ -4,13 +4,15 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.decorators import action
 from rest_framework.authtoken.models import Token
-from rest_framework.authentication import TokenAuthentication # إضافة التوثيق بالتوكن
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from .models import Prescription, PrescriptionMedicine
 from .serializers import PrescriptionSerializer
-# استيراد من نفس المجلد بعد الدمج
+
+# استيراد الموديلات والـ Serializers الأخرى
 from .models import (
     UserProfile, PatientProfile, DoctorProfile, 
     Specialization, Disease, Appointment
@@ -19,7 +21,7 @@ from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer,
     SpecializationSerializer, DiseaseSerializer, 
     AppointmentSerializer, DoctorProfileSerializer,
-    PatientProfileSerializer  # تأكد من إضافة هذا السطر في ملف serializers.py
+    PatientProfileSerializer
 )
 
 # ================================
@@ -36,7 +38,6 @@ class RegisterView(APIView):
             token, _ = Token.objects.get_or_create(user=user)
             profile = UserProfile.objects.get(user=user)
             
-            # الحصول على الـ profile_id للمريض افتراضياً عند التسجيل
             p_id = profile.patientprofile.pk if hasattr(profile, 'patientprofile') else None
 
             return Response({
@@ -63,7 +64,6 @@ class LoginView(APIView):
         profile, _ = UserProfile.objects.get_or_create(user=user)
         token, _ = Token.objects.get_or_create(user=user)
 
-        # تحديد الـ ID الخاص بنوع الحساب (دكتور أو مريض)
         p_id = None
         if profile.user_type == 'PATIENT' and hasattr(profile, 'patientprofile'):
             p_id = profile.patientprofile.pk
@@ -82,7 +82,7 @@ class LoginView(APIView):
 # 2️⃣ الأطباء والتخصصات (Medical Data)
 # ================================
 
-class SpecializationViewSet(viewsets.ModelViewSet): # تعديل للسماح بالإدارة
+class SpecializationViewSet(viewsets.ModelViewSet):
     queryset = Specialization.objects.all()
     serializer_class = SpecializationSerializer
     authentication_classes = [TokenAuthentication]
@@ -92,16 +92,14 @@ class SpecializationViewSet(viewsets.ModelViewSet): # تعديل للسماح ب
             return [AllowAny()]
         return [IsAdminUser()]
 
-# تعديل DiseaseViewSet ليدعم الـ POST (الإضافة) من تطبيق فلاتر
 class DiseaseViewSet(viewsets.ModelViewSet): 
     queryset = Disease.objects.all()
     serializer_class = DiseaseSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name_en', 'name_ar', 'symptoms_en', 'symptoms_ar', 'specialization__name_en','specialization__name_ar']
-    authentication_classes = [TokenAuthentication] # مهم جداً لقراءة التوكن
+    authentication_classes = [TokenAuthentication]
 
     def get_permissions(self):
-        # السماح للجميع برؤية الأمراض، ولكن الإضافة (POST) للأدمن فقط
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
         return [IsAdminUser()]
@@ -147,23 +145,18 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             return Appointment.objects.filter(doctor__user_profile=profile)
         return Appointment.objects.all()
 
-    # --- هذا الجزء المسؤول عن الحجز (POST) ---
     def perform_create(self, serializer):
         profile = self.request.user.userprofile
         if profile.user_type == 'PATIENT':
-            # المريض يحجز وتكون الحالة تلقائياً PENDING
             serializer.save(patient=profile.patientprofile, status='PENDING')
         else:
-            # منع الطبيب أو الأدمن من حجز موعد لنفسه من واجهة المريض
-            raise permissions.PermissionDenied("Only patients can book appointments.")
+            raise PermissionDenied("Only patients can book appointments.")
 
-    # --- هذا الجزء المسؤول عن التعديل (PATCH/PUT) ---
     def perform_update(self, serializer):
         if self.request.user.userprofile.user_type == 'DOCTOR':
-            # الطبيب فقط من يملك صلاحية تغيير الحالة (Confirm/Cancel)
             serializer.save()
         else:
-            raise permissions.PermissionDenied("Only doctors can update appointment status.")
+            raise PermissionDenied("Only doctors can update appointment status.")
 
 # ================================
 # 4️⃣ الإدارة (Admin)
@@ -202,27 +195,19 @@ class AdminUpdateRole(APIView):
         profile.save()
         return Response({"message": "Updated"})
 
-# --- التعديل المطلوب لعرض قائمة المرضى ببياناتهم الجديدة ---
 class PatientListView(generics.ListAPIView):
-    """
-    هذه الـ View تعرض قائمة المرضى للأدمن، 
-    وتعرض بيانات المريض المسجل دخوله فقط إذا لم يكن أدمن.
-    """
     serializer_class = PatientProfileSerializer
     permission_classes = [IsAuthenticated] 
     authentication_classes = [TokenAuthentication]
 
     def get_queryset(self):
         user = self.request.user
-        # التحقق إذا كان المستخدم 'Superuser' أو 'Staff' (أدمن)
         if user.is_staff or user.is_superuser:
             return PatientProfile.objects.all()
-        
-        # إذا كان مريض عادي، نعيد له فقط البيانات المرتبطة بحسابه
         return PatientProfile.objects.filter(user_profile__user=user)
 
 # ================================
-# 5️⃣ الروشتات الطبية (Prescriptions)
+# 5️⃣ الروشتات الطبية (Prescriptions) - المحدثة
 # ================================
 
 class PrescriptionViewSet(viewsets.ModelViewSet):
@@ -239,33 +224,47 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
         user = self.request.user
         profile = user.userprofile
         
+        # تحسين الأداء بجلب الأدوية والبيانات المرتبطة في استعلام واحد
+        queryset = Prescription.objects.select_related(
+            'appointment__doctor__user_profile', 
+            'appointment__patient__user_profile'
+        ).prefetch_related('medicines')
+
         if profile.user_type == 'DOCTOR':
-            # جلب الروشتات التي كتبها هذا الطبيب عبر المواعيد الخاصة به
-            return Prescription.objects.filter(appointment__doctor__user_profile=profile)
-        
+            return queryset.filter(appointment__doctor__user_profile=profile)
         elif profile.user_type == 'PATIENT':
-            # جلب الروشتات الخاصة بالمريض فقط
-            return Prescription.objects.filter(appointment__patient__user_profile=profile)
+            return queryset.filter(appointment__patient__user_profile=profile)
         
         return Prescription.objects.none()
 
     def perform_create(self, serializer):
-        # التأكد من أن الذي ينشئ الروشتة هو طبيب
+        # 1. التأكد من أن المستخدم طبيب
         if self.request.user.userprofile.user_type != 'DOCTOR':
-            raise permissions.PermissionDenied("Only doctors can issue prescriptions.")
+            raise PermissionDenied("Only doctors can issue prescriptions.")
         
-        # ربط الروشتة بالمحيط الحالي (اختياري إذا كان الـ ID يأتي في الـ Request)
+        # 2. التأكد من عدم وجود روشتة سابقة لهذا الموعد (OneToOneField)
+        appointment_id = self.request.data.get('appointment')
+        if Prescription.objects.filter(appointment_id=appointment_id).exists():
+            raise ValidationError({"error": "This appointment already has a prescription."})
+        
         serializer.save()
 
     @action(detail=False, methods=['get'], url_path='by-appointment/(?P<app_id>\d+)')
     def by_appointment(self, request, app_id=None):
-        """جلب الروشتة الخاصة بموعد معين"""
-        prescription = get_object_or_404(Prescription, appointment_id=app_id)
+        """جلب الروشتة الخاصة بموعد معين مع الأدوية"""
+        # استخدام prefetch_related لجلب الأدوية بكفاءة
+        prescription = get_object_or_404(
+            Prescription.objects.prefetch_related('medicines'), 
+            appointment_id=app_id
+        )
+        
         # التحقق من الصلاحية (أن المستخدم هو طبيب الموعد أو مريض الموعد)
         user_profile = request.user.userprofile
-        if user_profile != prescription.appointment.doctor.user_profile and \
-           user_profile != prescription.appointment.patient.user_profile:
-            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+        is_doctor = user_profile == prescription.appointment.doctor.user_profile
+        is_patient = user_profile == prescription.appointment.patient.user_profile
+
+        if not (is_doctor or is_patient):
+            return Response({"error": "Unauthorized Access"}, status=status.HTTP_403_FORBIDDEN)
             
         serializer = self.get_serializer(prescription)
         return Response(serializer.data)

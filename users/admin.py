@@ -22,7 +22,7 @@ class UserProfileAdmin(admin.ModelAdmin):
 # 2. إدارة التخصصات الطبية
 @admin.register(Specialization)
 class SpecializationAdmin(admin.ModelAdmin):
-    list_display = ('name_en', 'name_ar', 'icon') # عرض الاسم بالعربي والإنجليزي
+    list_display = ('name_en', 'name_ar', 'icon')
     search_fields = ('name_en', 'name_ar')
 
 
@@ -35,35 +35,37 @@ class DoctorProfileAdmin(admin.ModelAdmin):
 
     def get_username(self, obj):
         return obj.user_profile.user.username
-    get_username.short_description = 'Doctor Name'
+    get_username.short_description = 'اسم الطبيب'
 
 
 # 4. إدارة بروفايل المرضى
 @admin.register(PatientProfile)
 class PatientProfileAdmin(admin.ModelAdmin):
-    list_display = ('get_username',)
+    list_display = ('get_username', 'phone')
     search_fields = ('user_profile__user__username',)
 
     def get_username(self, obj):
         return obj.user_profile.user.username
-    get_username.short_description = 'Patient Name'
+    get_username.short_description = 'اسم المريض'
+
+    def phone(self, obj):
+        return obj.user_profile.phone_number
+    phone.short_description = 'رقم الهاتف'
 
 
-# 5. إدارة الأمراض (تم تحديث العرض هنا)
+# 5. إدارة الأمراض
 @admin.register(Disease)
 class DiseaseAdmin(admin.ModelAdmin):
-    # عرض الاسم العربي والإنجليزي والتخصص في القائمة الرئيسية
-    list_display = ('name_en', 'name_ar', 'specialization') 
+    list_display = ('name_ar', 'name_en', 'specialization') 
     list_filter = ('specialization',)
     search_fields = ('name_en', 'name_ar', 'symptoms_en', 'symptoms_ar')
     
     fieldsets = (
-        ('Basic Information', {
+        ('المعلومات الأساسية (Basic Info)', {
             'fields': ('name_en', 'name_ar', 'specialization')
         }),
-        ('Symptoms & Description', {
-            'fields': ('symptoms_en', 'symptoms_ar', 'symptoms'),
-            'description': 'Enter descriptions for both languages.'
+        ('التوصيف والأعراض (Symptoms)', {
+            'fields': ('symptoms_en', 'symptoms_ar'),
         }),
     )
 
@@ -77,26 +79,50 @@ class AppointmentAdmin(admin.ModelAdmin):
         'patient__user_profile__user__username',
         'doctor__user_profile__user__username'
     )
-    
-# 7. إدارة الأدوية كجزء مدمج (Inline)
+    # ترتيب المواعيد من الأحدث للأقدم
+    ordering = ('-appointment_date',)
+
+
+# 7. إدارة الأدوية كجزء مدمج (Tabular Inline)
 class MedicineInline(admin.TabularInline):
     model = PrescriptionMedicine
-    extra = 1  # يظهر حقل واحد فارغ افتراضياً لإضافة دواء جديد
+    # عرض الحقول الجديدة بعد الدمج
+    fields = ('medicine_name', 'dosage', 'duration', 'instructions')
+    extra = 1  # يظهر حقل فارغ واحد للإضافة السريعة
+
 
 # 8. إدارة الروشتات
 @admin.register(Prescription)
 class PrescriptionAdmin(admin.ModelAdmin):
-    # list_display تساعدك في رؤية المريض والتاريخ من القائمة الرئيسية للروشتات
     list_display = ('get_patient', 'get_doctor', 'created_at')
+    # إضافة الأدوية داخل صفحة الروشتة
     inlines = [MedicineInline]
     search_fields = ('appointment__patient__user_profile__user__username',)
+    readonly_fields = ('created_at', 'updated_at')
 
-    # دالة لجلب اسم المريض في القائمة
     def get_patient(self, obj):
         return obj.appointment.patient.user_profile.user.username
-    get_patient.short_description = 'Patient Name'
+    get_patient.short_description = 'المريض'
 
-    # دالة لجلب اسم الطبيب في القائمة
     def get_doctor(self, obj):
         return obj.appointment.doctor.user_profile.user.username
-    get_doctor.short_description = 'Doctor Name'
+    get_doctor.short_description = 'الطبيب'
+
+    fieldsets = (
+        ('بيانات الموعد', {
+            'fields': ('appointment',)
+        }),
+        ('التشخيص الطبي', {
+            'fields': ('diagnosis',)
+        }),
+        ('التوقيت', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',) # إخفاء التوقيتات خلف قائمة منسدلة
+        }),
+    )
+
+# 9. تسجيل الأدوية بشكل منفصل (اختياري)
+@admin.register(PrescriptionMedicine)
+class PrescriptionMedicineAdmin(admin.ModelAdmin):
+    list_display = ('medicine_name', 'prescription', 'dosage')
+    search_fields = ('medicine_name',)

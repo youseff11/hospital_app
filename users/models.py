@@ -201,17 +201,17 @@ class Prescription(models.Model):
     )
     diagnosis = models.TextField(
         verbose_name="التشخيص (Diagnosis)",
-        help_text="اكتب تشخيص الحالة هنا"
+        help_text="اكتب تشخيص الحالة هنا بالعربية أو الإنجليزية"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"روشتة المريض: {self.appointment.patient.user_profile.user.username}"
+        return f"روشتة: {self.appointment.patient_name}"
 
     class Meta:
-        verbose_name = "Prescription"
-        verbose_name_plural = "Prescriptions"
+        verbose_name = "الروشتة"
+        verbose_name_plural = "الروشتات"
 
 
 # 8. الأدوية داخل الروشتة (Prescription Medicines)
@@ -225,8 +225,18 @@ class PrescriptionMedicine(models.Model):
     medicine_name = models.CharField(max_length=200, verbose_name="اسم الدواء")
     dosage = models.CharField(max_length=100, verbose_name="الجرعة", help_text="مثلاً: 3 مرات يومياً")
     duration = models.CharField(max_length=100, verbose_name="المدة", help_text="مثلاً: لمدة أسبوع")
-    instruction_ar = models.TextField(blank=True, null=True, verbose_name="تعليمات بالعربي")
-    instruction_en = models.TextField(blank=True, null=True, verbose_name="Instructions (EN)")
+    
+    # تم دمج حقلين التعليمات في حقل واحد
+    instructions = models.TextField(
+        blank=True, 
+        null=True, 
+        verbose_name="التعليمات (Notes)", 
+        help_text="اكتب التعليمات بأي لغة (عربي أو إنجليزي)"
+    )
 
     def __str__(self):
         return self.medicine_name
+
+    class Meta:
+        verbose_name = "دواء الروشتة"
+        verbose_name_plural = "أدوية الروشتات"

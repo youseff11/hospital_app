@@ -82,28 +82,18 @@ class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
-# 5. Serializer الأمراض (تم التعديل لترجمة التخصص)
+# 5. Serializer الأمراض
 class DiseaseSerializer(serializers.ModelSerializer):
-    # حقول للقراءة فقط لعرض الأسماء في Flutter
     specialization_name_ar = serializers.CharField(source='specialization.name_ar', read_only=True)
     specialization_name_en = serializers.CharField(source='specialization.name_en', read_only=True)
 
     class Meta:
         model = Disease
         fields = [
-            'id', 
-            'name_ar', 
-            'name_en', 
-            'symptoms_ar', 
-            'symptoms_en', 
-            'specialization',         # أضفنا هذا الحقل لاستقبال الـ ID من التطبيق
-            'specialization_name_ar', 
-            'specialization_name_en'
+            'id', 'name_ar', 'name_en', 'symptoms_ar', 'symptoms_en', 
+            'specialization', 'specialization_name_ar', 'specialization_name_en'
         ]
-        # لجعل التخصص اختيارياً أو التأكد من التعامل معه
-        extra_kwargs = {
-            'specialization': {'required': False, 'allow_null': True}
-        }
+        extra_kwargs = {'specialization': {'required': False, 'allow_null': True}}
 
 # 6. Serializer المواعيد
 class AppointmentSerializer(serializers.ModelSerializer):
@@ -118,50 +108,38 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'id', 'patient_id', 'doctor_id', 'appointment_date', 
             'status', 'notes', 'patient_name', 'doctor_name'
         ]
-        # حذفنا 'status' من هنا لكي يتمكن الطبيب من عمل PATCH له
         read_only_fields = ['patient_name', 'doctor_name']
 
-# 7 بروفايل المريض
+# 7. بروفايل المريض
 class PatientProfileSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user_profile.user.username', read_only=True)
     phone_number = serializers.CharField(source='user_profile.phone_number', read_only=True)
     address = serializers.CharField(source='user_profile.address', read_only=True)
-    
-    # إضافة هذا الحقل ضروري جداً لأن كود فلاتر يبحث عنه للفلترة
     user_details = serializers.SerializerMethodField()
 
     class Meta:
         model = PatientProfile
         fields = [
-            'user_profile_id', 
-            'full_name', 
-            'phone_number', 
-            'address',
-            'date_of_birth', 
-            'blood_group', 
-            'medical_history', # تأكد أن هذا الحقل موجود هنا ليظهر في التطبيق
-            'user_details'     # الحقل الجديد لربط الهوية
+            'user_profile_id', 'full_name', 'phone_number', 'address',
+            'date_of_birth', 'blood_group', 'medical_history', 'user_details'
         ]
 
-    # دالة لجلب بيانات المستخدم لضمان عدم حدوث خطأ "null" في فلاتر
     def get_user_details(self, obj):
         return {
             "username": obj.user_profile.user.username,
             "email": obj.user_profile.user.email
         }
 
-# 8. Serializer الأدوية (داخل الروشتة)
+# 8. Serializer الأدوية (تم التعديل لاستخدام حقل instructions الموحد)
 class PrescriptionMedicineSerializer(serializers.ModelSerializer):
     class Meta:
         model = PrescriptionMedicine
-        fields = ['id', 'medicine_name', 'dosage', 'duration', 'instruction_ar', 'instruction_en']
+        # دمجنا الحقول هنا لتصبح instructions
+        fields = ['id', 'medicine_name', 'dosage', 'duration', 'instructions']
 
 # 9. Serializer الروشتة الكاملة
 class PrescriptionSerializer(serializers.ModelSerializer):
-    # ربط الأدوية بالروشتة (علاقة متداخلة)
     medicines = PrescriptionMedicineSerializer(many=True)
-    
-    # حقول إضافية للقراءة فقط لعرضها في التطبيق
     patient_name = serializers.CharField(source='appointment.patient.user_profile.user.username', read_only=True)
     doctor_name = serializers.CharField(source='appointment.doctor.user_profile.user.username', read_only=True)
     appointment_date = serializers.DateTimeField(source='appointment.appointment_date', read_only=True)
@@ -173,10 +151,12 @@ class PrescriptionSerializer(serializers.ModelSerializer):
             'patient_name', 'doctor_name', 'appointment_date', 'created_at'
         ]
 
-    # دالة مخصصة لحفظ الروشتة مع أدويتها في عملية واحدة
     def create(self, validated_data):
+        # استخراج الأدوية من البيانات المرسلة
         medicines_data = validated_data.pop('medicines')
+        # إنشاء الروشتة
         prescription = Prescription.objects.create(**validated_data)
+        # إنشاء الأدوية المرتبطة
         for medicine_data in medicines_data:
             PrescriptionMedicine.objects.create(prescription=prescription, **medicine_data)
         return prescription
