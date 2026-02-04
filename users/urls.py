@@ -37,4 +37,5 @@ urlpatterns = [
     path("admin/list/", AdminListUsers.as_view()),
     path("admin/delete/<int:user_id>/", AdminDeleteUser.as_view()),
     path("admin/update-role/<int:user_id>/", AdminUpdateRole.as_view()),
+    path('admin/patients/', PatientListView.as_view(), name='admin-patients-list'),
 ]

@@ -117,3 +117,21 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'status', 'notes', 'patient_name', 'doctor_name'
         ]
         read_only_fields = ['status']
+
+# 7 بروفايل المريض
+class PatientProfileSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(source='user_profile.user.username', read_only=True)
+    phone_number = serializers.CharField(source='user_profile.phone_number', read_only=True)
+    address = serializers.CharField(source='user_profile.address', read_only=True)
+
+    class Meta:
+        model = PatientProfile
+        fields = [
+            'user_profile_id', 
+            'full_name', 
+            'phone_number', 
+            'address',
+            'date_of_birth', 
+            'blood_group',     # الحقل الجديد
+            'medical_history'
+        ]

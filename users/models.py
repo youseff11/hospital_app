@@ -56,15 +56,29 @@ class UserProfile(models.Model):
         return f"{self.user.username} - {self.get_user_type_display()}"
 
 
-# 3. بروفايل المريض
+# 3. بروفايل المريض (بعد إضافة فصيلة الدم وتاريخ الميلاد)
 class PatientProfile(models.Model):
+    # خيارات فصائل الدم
+    BLOOD_GROUP_CHOICES = (
+        ('A+', 'A+'), ('A-', 'A-'),
+        ('B+', 'B+'), ('B-', 'B-'),
+        ('AB+', 'AB+'), ('AB-', 'AB-'),
+        ('O+', 'O+'), ('O-', 'O-'),
+    )
+
     user_profile = models.OneToOneField(UserProfile, on_delete=models.CASCADE, primary_key=True)
     date_of_birth = models.DateField(null=True, blank=True)
+    blood_group = models.CharField(
+        max_length=5, 
+        choices=BLOOD_GROUP_CHOICES, 
+        null=True, 
+        blank=True,
+        verbose_name="Blood Group"
+    )
     medical_history = models.TextField(blank=True)
 
     def __str__(self):
         return f"Patient Profile: {self.user_profile.user.username}"
-
 
 # 4. بروفايل الطبيب
 class DoctorProfile(models.Model):

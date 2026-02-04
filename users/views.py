@@ -17,7 +17,8 @@ from .models import (
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer,
     SpecializationSerializer, DiseaseSerializer, 
-    AppointmentSerializer, DoctorProfileSerializer
+    AppointmentSerializer, DoctorProfileSerializer,
+    PatientProfileSerializer  # تأكد من إضافة هذا السطر في ملف serializers.py
 )
 
 # ================================
@@ -188,3 +189,14 @@ class AdminUpdateRole(APIView):
         profile.user_type = request.data.get("role")
         profile.save()
         return Response({"message": "Updated"})
+
+# --- التعديل المطلوب لعرض قائمة المرضى ببياناتهم الجديدة ---
+class PatientListView(generics.ListAPIView):
+    """
+    هذه الـ View تعرض قائمة المرضى وتستخدم الـ Serializer المحدث
+    الذي يحتوي على Blood Group و Date of Birth.
+    """
+    queryset = PatientProfile.objects.all()
+    serializer_class = PatientProfileSerializer
+    permission_classes = [IsAdminUser] # للقائمة الإدارية
+    authentication_classes = [TokenAuthentication]
