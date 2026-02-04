@@ -39,7 +39,9 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
 
     def get_full_name(self, obj):
         try:
-            return obj.user_profile.user.username
+            # يفضل استخدام get_full_name إذا كان متاحاً أو الـ username
+            user = obj.user_profile.user
+            return user.get_full_name() if user.get_full_name() else user.username
         except:
             return "Unknown"
 
@@ -138,17 +140,22 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             "email": obj.user_profile.user.email
         }
 
-# 8. Prescription Medicine Serializer
+# 8. Prescription Medicine Serializer (تمت إضافة allow_blank لضمان عدم حدوث خطأ 400)
 class PrescriptionMedicineSerializer(serializers.ModelSerializer):
     class Meta:
         model = PrescriptionMedicine
         fields = ['id', 'medicine_name', 'dosage', 'duration', 'instructions']
+        extra_kwargs = {
+            'instructions': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'dosage': {'required': False, 'allow_blank': True},
+            'duration': {'required': False, 'allow_blank': True},
+        }
 
-# 9. Prescription Serializer (المحدث بالكامل)
+# 9. Prescription Serializer (المحسن للتعامل مع الـ nested objects)
 class PrescriptionSerializer(serializers.ModelSerializer):
     medicines = PrescriptionMedicineSerializer(many=True)
-    patient_name = serializers.CharField(source='appointment.patient.user_profile.user.username', read_only=True)
-    doctor_name = serializers.CharField(source='appointment.doctor.user_profile.user.username', read_only=True)
+    patient_name = serializers.SerializerMethodField()
+    doctor_name = serializers.SerializerMethodField()
     appointment_date = serializers.DateTimeField(source='appointment.appointment_date', read_only=True)
 
     class Meta:
@@ -158,21 +165,37 @@ class PrescriptionSerializer(serializers.ModelSerializer):
             'patient_name', 'doctor_name', 'appointment_date', 'created_at'
         ]
 
+    def get_patient_name(self, obj):
+        try:
+            user = obj.appointment.patient.user_profile.user
+            return user.get_full_name() if user.get_full_name() else user.username
+        except:
+            return "Unknown Patient"
+
+    def get_doctor_name(self, obj):
+        try:
+            user = obj.appointment.doctor.user_profile.user
+            return user.get_full_name() if user.get_full_name() else user.username
+        except:
+            return "Dr. Unknown"
+
     def create(self, validated_data):
-        medicines_data = validated_data.pop('medicines')
+        # استخراج الأدوية يدوياً
+        medicines_data = validated_data.pop('medicines', [])
+        # إنشاء الروشتة
         prescription = Prescription.objects.create(**validated_data)
+        # إنشاء الأدوية وربطها بالروشتة
         for medicine_data in medicines_data:
             PrescriptionMedicine.objects.create(prescription=prescription, **medicine_data)
         return prescription
 
     def update(self, instance, validated_data):
-        # تحديث بيانات الروشتة الأساسية
         medicines_data = validated_data.pop('medicines', None)
         instance.diagnosis = validated_data.get('diagnosis', instance.diagnosis)
         instance.save()
 
-        # تحديث الأدوية (حذف القديم وإضافة الجديد لضمان المزامنة)
         if medicines_data is not None:
+            # مسح الأدوية القديمة وإضافة الجديدة (تبسيطاً للمزامنة)
             instance.medicines.all().delete()
             for medicine_data in medicines_data:
                 PrescriptionMedicine.objects.create(prescription=instance, **medicine_data)
