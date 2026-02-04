@@ -116,7 +116,8 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'id', 'patient_id', 'doctor_id', 'appointment_date', 
             'status', 'notes', 'patient_name', 'doctor_name'
         ]
-        read_only_fields = ['status']
+        # حذفنا 'status' من هنا لكي يتمكن الطبيب من عمل PATCH له
+        read_only_fields = ['patient_name', 'doctor_name']
 
 # 7 بروفايل المريض
 class PatientProfileSerializer(serializers.ModelSerializer):

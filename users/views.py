@@ -146,12 +146,23 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             return Appointment.objects.filter(doctor__user_profile=profile)
         return Appointment.objects.all()
 
+    # --- هذا الجزء المسؤول عن الحجز (POST) ---
     def perform_create(self, serializer):
         profile = self.request.user.userprofile
         if profile.user_type == 'PATIENT':
+            # المريض يحجز وتكون الحالة تلقائياً PENDING
             serializer.save(patient=profile.patientprofile, status='PENDING')
         else:
-            raise permissions.PermissionDenied("Only patients can book.")
+            # منع الطبيب أو الأدمن من حجز موعد لنفسه من واجهة المريض
+            raise permissions.PermissionDenied("Only patients can book appointments.")
+
+    # --- هذا الجزء المسؤول عن التعديل (PATCH/PUT) ---
+    def perform_update(self, serializer):
+        if self.request.user.userprofile.user_type == 'DOCTOR':
+            # الطبيب فقط من يملك صلاحية تغيير الحالة (Confirm/Cancel)
+            serializer.save()
+        else:
+            raise permissions.PermissionDenied("Only doctors can update appointment status.")
 
 # ================================
 # 4️⃣ الإدارة (Admin)
