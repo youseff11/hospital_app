@@ -196,9 +196,38 @@ class AdminUpdateRole(APIView):
 
     def put(self, request, user_id):
         profile = get_object_or_404(UserProfile, user_id=user_id)
-        profile.user_type = request.data.get("role")
+        
+        new_role = request.data.get("role")
+        old_role = profile.user_type
+
+        # التأكد من أنه تم إرسال دور جديد وأنه مختلف عن الدور الحالي
+        if not new_role or new_role == old_role:
+            return Response({"message": "No changes made."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. تحديث الدور
+        profile.user_type = new_role
         profile.save()
-        return Response({"message": "Updated"})
+
+        # 2. التعامل مع مسح وإنشاء الملفات الشخصية (Profiles)
+        if new_role == 'DOCTOR' and old_role == 'PATIENT':
+            # مسح ملف المريض إذا كان موجوداً
+            if hasattr(profile, 'patientprofile'):
+                profile.patientprofile.delete()
+            
+            # إنشاء ملف طبيب فارغ لربطه بالحساب
+            DoctorProfile.objects.get_or_create(user_profile=profile)
+
+        elif new_role == 'PATIENT' and old_role == 'DOCTOR':
+            # مسح ملف الطبيب إذا كان موجوداً
+            if hasattr(profile, 'doctorprofile'):
+                profile.doctorprofile.delete()
+            
+            # إنشاء ملف مريض فارغ لربطه بالحساب
+            PatientProfile.objects.get_or_create(user_profile=profile)
+
+        return Response({
+            "message": f"User role updated successfully to {new_role}."
+        }, status=status.HTTP_200_OK)
 
 class PatientListView(generics.ListAPIView):
     serializer_class = PatientProfileSerializer
