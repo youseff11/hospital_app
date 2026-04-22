@@ -104,11 +104,17 @@ class DiseaseViewSet(viewsets.ModelViewSet):
         return [IsAdminUser()]
 
 class DoctorListView(generics.ListAPIView):
-    queryset = DoctorProfile.objects.all()
     serializer_class = DoctorProfileSerializer
     permission_classes = [AllowAny]
     filter_backends = [filters.SearchFilter]
     search_fields = ['user_profile__user__username', 'specialization__name_en']
+
+    def get_queryset(self):
+        qs = DoctorProfile.objects.all()
+        spec_name = self.request.query_params.get('specialization_name')
+        if spec_name:
+            qs = qs.filter(specialization__name_en__iexact=spec_name.strip())
+        return qs
 
 class DoctorProfileView(generics.RetrieveAPIView):
     serializer_class = DoctorProfileSerializer
@@ -268,3 +274,67 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
         # نرسل many=True لأننا بنعرض قائمة روشتات
         serializer = self.get_serializer(prescriptions, many=True)
         return Response(serializer.data)
+
+# ================================
+# 6️⃣ Reset Password
+# ================================
+
+class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        username = request.data.get('username', '').strip()
+        email = request.data.get('email', '').strip()
+        new_password = request.data.get('new_password', '')
+
+        if not username or not email or not new_password:
+            return Response(
+                {'error': 'username, email, and new_password are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if len(new_password) < 6:
+            return Response(
+                {'error': 'Password must be at least 6 characters.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = User.objects.get(username=username, email__iexact=email)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'No account found with this username and email.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        user.set_password(new_password)
+        user.save()
+        # إلغاء جميع التوكنات القديمة
+        Token.objects.filter(user=user).delete()
+        return Response({'message': 'Password reset successfully.'}, status=status.HTTP_200_OK)
+
+
+# ================================
+# 7️⃣ Admin Doctor Management
+# ================================
+
+class AdminDoctorDetailView(APIView):
+    permission_classes = [IsAdminUser]
+    authentication_classes = [TokenAuthentication]
+
+    def patch(self, request, doctor_id):
+        """تعديل بيانات الطبيب (مثلاً تغيير التخصص)"""
+        doctor = get_object_or_404(DoctorProfile, id=doctor_id)
+        spec_id = request.data.get('specialization')
+        if spec_id:
+            spec = get_object_or_404(Specialization, id=spec_id)
+            doctor.specialization = spec
+            doctor.save()
+        return Response({'message': 'Doctor updated successfully.'})
+
+    def delete(self, request, doctor_id):
+        """حذف ملف طبيب"""
+        doctor = get_object_or_404(DoctorProfile, id=doctor_id)
+        user = doctor.user_profile.user
+        user.delete()  # يحذف كل شيء بالـ cascade
+        return Response({'message': 'Doctor deleted.'}, status=status.HTTP_204_NO_CONTENT)

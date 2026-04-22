@@ -10,10 +10,13 @@ from .views import (
     SpecializationViewSet, 
     DiseaseViewSet, 
     AppointmentViewSet,
-    PrescriptionViewSet, # استيراد الـ ViewSet الجديد
+    PrescriptionViewSet,
     DoctorListView,
     DoctorsByDiseaseView,
-    PatientListView
+    PatientListView,
+    # New
+    ResetPasswordView,
+    AdminDoctorDetailView,
 )
 
 # إنشاء الـ Router للـ ViewSets
@@ -41,4 +44,10 @@ urlpatterns = [
     path("admin/delete/<int:user_id>/", AdminDeleteUser.as_view()),
     path("admin/update-role/<int:user_id>/", AdminUpdateRole.as_view()),
     path('admin/patients/', PatientListView.as_view(), name='admin-patients-list'),
+
+    # 5. Reset Password
+    path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
+
+    # 6. Admin Doctor Management
+    path('admin/doctors/<int:doctor_id>/', AdminDoctorDetailView.as_view(), name='admin-doctor-detail'),
 ]
