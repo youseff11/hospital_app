@@ -10,6 +10,14 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 
+from django.core.mail import send_mail
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from django.urls import reverse
+from django.conf import settings
+from django.contrib.auth.models import User
+
 # استيراد الموديلات والـ Serializers
 from .models import (
     UserProfile, PatientProfile, DoctorProfile, 
@@ -367,3 +375,44 @@ class AdminDoctorDetailView(APIView):
         user = doctor.user_profile.user
         user.delete()  # يحذف كل شيء بالـ cascade
         return Response({'message': 'Doctor deleted.'}, status=status.HTTP_204_NO_CONTENT)
+
+# ================================
+# Send Password Reset Link API
+# ================================
+class SendPasswordResetEmailView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        
+        if not email:
+            return Response({'error': 'Please provide an email address.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            # بنرجع Success برضه لأسباب أمنية عشان محدش يقدر يخمن الإيميلات المسجلة
+            return Response({'message': 'If the email exists, a reset link has been sent.'}, status=status.HTTP_200_OK)
+
+        # 1. إنشاء Token و User ID مشفر
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+
+        # 2. بناء رابط صفحة إعادة تعيين كلمة المرور
+        reset_link = request.build_absolute_uri(
+            reverse('password_reset_confirm', kwargs={'uidb64': uid, 'token': token})
+        )
+
+        # 3. إرسال الإيميل
+        subject = 'Password Reset Request'
+        message = f'Hi {user.username},\n\nPlease click the link below to reset your password:\n{reset_link}\n\nIf you did not request this, please ignore this email.'
+        
+        send_mail(
+            subject,
+            message,
+            settings.EMAIL_HOST_USER,
+            [user.email],
+            fail_silently=False,
+        )
+
+        return Response({'message': 'If the email exists, a reset link has been sent.'}, status=status.HTTP_200_OK)
