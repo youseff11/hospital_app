@@ -10,14 +10,14 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/wsgi/
 import os
 from django.core.wsgi import get_wsgi_application
 
-# استيراد مكتبة تفعيل ملفات الـ .env
+# محاولة تحميل متغيرات البيئة من ملف .env بشكل آمن
 try:
     from dotenv import load_dotenv
-    # تحديد مسار ملف الـ .env (في نفس مستوى ملف manage.py)
-    project_folder = os.path.expanduser('/home/youseff11/hospital_backend') # تأكد من اسم اليوزر والمجلد على السيرفر
+    # تأكد أن هذا هو المسار الصحيح لمجلد الـ backend اللي جواه ملف .env
+    project_folder = '/home/youseff11/hospital_backend' 
     load_dotenv(os.path.join(project_folder, '.env'))
-except ImportError:
-    pass
+except Exception as e:
+    print(f"Dotenv loading failed: {e}")
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'hospital_backend.settings')
 
