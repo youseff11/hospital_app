@@ -1,3 +1,4 @@
+import os
 from rest_framework import viewsets, generics, permissions, filters, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -10,25 +11,20 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 
-from django.core.mail import send_mail
-from django.contrib.auth.tokens import default_token_generator
-from django.utils.http import urlsafe_base64_encode
-from django.utils.encoding import force_bytes
-from django.urls import reverse
-from django.conf import settings
-from django.contrib.auth.models import User
-
 # استيراد الموديلات والـ Serializers
 from .models import (
     UserProfile, PatientProfile, DoctorProfile, 
     Specialization, Disease, Appointment, 
-    Prescription, PrescriptionMedicine
+    Prescription, PrescriptionMedicine,
+    Medicine, PharmacyOrder
+
 )
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer,
     SpecializationSerializer, DiseaseSerializer, 
     AppointmentSerializer, DoctorProfileSerializer,
-    PatientProfileSerializer, PrescriptionSerializer
+    PatientProfileSerializer, PrescriptionSerializer,
+    MedicineSerializer, PharmacyOrderSerializer
 )
 
 # ================================
@@ -290,7 +286,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
         # تم حذف شرط التحقق من وجود روشتة سابقة (Validation) للسماح بالتعدد ✅
         serializer.save()
 
-    @action(detail=False, methods=['get'], url_path='by-appointment/(?P<app_id>\d+)')
+    @action(detail=False, methods=['get'], url_path=r'by-appointment/(?P<app_id>\d+)')
     def by_appointment(self, request, app_id=None):
         """جلب كل الروشتات الخاصة بموعد معين"""
         # نستخدم filter بدلاً من get_object_or_404 لأننا نتوقع "قائمة"
@@ -361,7 +357,8 @@ class AdminDoctorDetailView(APIView):
 
     def patch(self, request, doctor_id):
         """تعديل بيانات الطبيب (مثلاً تغيير التخصص)"""
-        doctor = get_object_or_404(DoctorProfile, id=doctor_id)
+        # doctor_id هنا هو الـ User ID اللي جاي من الفلاتر
+        doctor = get_object_or_404(DoctorProfile, user_profile__user__id=doctor_id)
         spec_id = request.data.get('specialization')
         if spec_id:
             spec = get_object_or_404(Specialization, id=spec_id)
@@ -371,48 +368,101 @@ class AdminDoctorDetailView(APIView):
 
     def delete(self, request, doctor_id):
         """حذف ملف طبيب"""
-        doctor = get_object_or_404(DoctorProfile, id=doctor_id)
+        # doctor_id هنا هو الـ User ID اللي جاي من الفلاتر
+        doctor = get_object_or_404(DoctorProfile, user_profile__user__id=doctor_id)
         user = doctor.user_profile.user
         user.delete()  # يحذف كل شيء بالـ cascade
         return Response({'message': 'Doctor deleted.'}, status=status.HTTP_204_NO_CONTENT)
 
+# 8️⃣ AI Chat
 # ================================
-# Send Password Reset Link API
-# ================================
-class SendPasswordResetEmailView(APIView):
-    permission_classes = [AllowAny]
+import requests
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+
+class AIChatView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    # تم سحب التوكن من متغيرات البيئة بدلاً من كتابته بشكل مباشر لضمان الأمان
+    HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
 
     def post(self, request):
-        email = request.data.get('email', '').strip()
-        
-        if not email:
-            return Response({'error': 'Please provide an email address.'}, status=status.HTTP_400_BAD_REQUEST)
+        user_message = request.data.get("message", "").strip()
+        if not user_message:
+            return Response({"error": "Message is required"}, status=400)
+
+        api_url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
+        headers = {"Authorization": f"Bearer {self.HF_API_TOKEN}"}
+
+        # تعديل الـ payload عشان نضمن إن الرد يكون مباشر
+        payload = {
+            "inputs": f"You are a medical assistant for Health Mate. User: {user_message}. Answer briefly and always suggest consulting a doctor.",
+            "parameters": {
+                "max_new_tokens": 300,
+                "temperature": 0.7,
+                "return_full_text": False # التعديل ده مهم جداً عشان يرجع الرد بس
+            }
+        }
 
         try:
-            user = User.objects.get(email__iexact=email)
-        except User.DoesNotExist:
-            # بنرجع Success برضه لأسباب أمنية عشان محدش يقدر يخمن الإيميلات المسجلة
-            return Response({'message': 'If the email exists, a reset link has been sent.'}, status=status.HTTP_200_OK)
+            response = requests.post(api_url, headers=headers, json=payload, timeout=25)
 
-        # 1. إنشاء Token و User ID مشفر
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
-        token = default_token_generator.make_token(user)
+            if response.status_code == 200:
+                result = response.json()
+                # الموديل هنا بيرجع قائمة، بناخد أول عنصر
+                ai_text = result[0]["generated_text"].strip()
+                return Response({"reply": ai_text})
+            else:
+                return Response({"error": f"AI service error: {response.text}"}, status=500)
 
-        # 2. بناء رابط صفحة إعادة تعيين كلمة المرور
-        reset_link = request.build_absolute_uri(
-            reverse('password_reset_confirm', kwargs={'uidb64': uid, 'token': token})
-        )
+        except Exception as e:
+            return Response({"error": f"Connection error: {str(e)}"}, status=500)
 
-        # 3. إرسال الإيميل
-        subject = 'Password Reset Request'
-        message = f'Hi {user.username},\n\nPlease click the link below to reset your password:\n{reset_link}\n\nIf you did not request this, please ignore this email.'
-        
-        send_mail(
-            subject,
-            message,
-            settings.EMAIL_HOST_USER,
-            [user.email],
-            fail_silently=False,
-        )
+# ================================
+# 9️⃣ Pharmacy
+# ================================
 
-        return Response({'message': 'If the email exists, a reset link has been sent.'}, status=status.HTTP_200_OK)
+class MedicineListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = MedicineSerializer
+    queryset = Medicine.objects.filter(is_available=True)
+
+
+class PharmacyOrderView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            patient = PatientProfile.objects.get(user_profile__user=request.user)
+            orders = PharmacyOrder.objects.filter(patient=patient)
+            serializer = PharmacyOrderSerializer(orders, many=True)
+            return Response(serializer.data)
+        except PatientProfile.DoesNotExist:
+            return Response({"error": "Patient not found"}, status=404)
+
+    def post(self, request):
+        try:
+            patient = PatientProfile.objects.get(user_profile__user=request.user)
+            medicine_id = request.data.get('medicine_id')
+            quantity = request.data.get('quantity', 1)
+            notes = request.data.get('notes', '')
+            medicine = Medicine.objects.get(id=medicine_id, is_available=True)
+            if medicine.stock < int(quantity):
+                return Response({"error": "Not enough stock"}, status=400)
+            order = PharmacyOrder.objects.create(
+                patient=patient,
+                medicine=medicine,
+                quantity=quantity,
+                notes=notes
+            )
+            medicine.stock -= int(quantity)
+            medicine.save()
+            serializer = PharmacyOrderSerializer(order)
+            return Response(serializer.data, status=201)
+        except Medicine.DoesNotExist:
+            return Response({"error": "Medicine not found"}, status=404)
+        except PatientProfile.DoesNotExist:
+            return Response({"error": "Patient not found"}, status=404)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
