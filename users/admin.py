@@ -8,9 +8,7 @@ from .models import (
     Disease, 
     Appointment,
     Prescription,
-    PrescriptionMedicine,
-    Medicine,
-    PharmacyOrder
+    PrescriptionMedicine
 )
 
 # ========================================================
@@ -245,21 +243,3 @@ class PrescriptionAdmin(admin.ModelAdmin):
             'classes': ('collapse',) 
         }),
     )
-
-# ========================================================
-# 9. Pharmacy Management
-# ========================================================
-@admin.register(Medicine)
-class MedicineAdmin(admin.ModelAdmin):
-    list_display = ('name', 'price', 'stock', 'category', 'is_available')
-    list_filter = ('is_available', 'category')
-    search_fields = ('name',)
-
-@admin.register(PharmacyOrder)
-class PharmacyOrderAdmin(admin.ModelAdmin):
-    list_display = ('get_patient', 'medicine', 'quantity', 'status', 'created_at')
-    list_filter = ('status',)
-
-    def get_patient(self, obj):
-        return obj.patient.user_profile.user.username
-    get_patient.short_description = 'Patient'

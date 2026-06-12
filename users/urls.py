@@ -2,8 +2,8 @@
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from django.contrib.auth import views as auth_views # إضافة هذا السطر
 from .views import (
-
     # User Views
     RegisterView, LoginView, DoctorProfileView,
     AdminListUsers, AdminDeleteUser, AdminUpdateRole,
@@ -15,13 +15,9 @@ from .views import (
     DoctorListView,
     DoctorsByDiseaseView,
     PatientListView,
-    # New
-    ResetPasswordView,
+    # New / Updated
+    SendPasswordResetEmailView, # تم تغيير الاسم ليعبر عن الوظيفة الجديدة
     AdminDoctorDetailView,
-    # AI
-    AIChatView,
-    #Pharmacy
-    MedicineListView, PharmacyOrderView,
 )
 
 # إنشاء الـ Router للـ ViewSets
@@ -29,7 +25,7 @@ router = DefaultRouter()
 router.register(r'specializations', SpecializationViewSet, basename='specialization')
 router.register(r'diseases', DiseaseViewSet, basename='disease')
 router.register(r'appointments', AppointmentViewSet, basename='appointment')
-router.register(r'prescriptions', PrescriptionViewSet, basename='prescription') # إضافة مسار الروشتات
+router.register(r'prescriptions', PrescriptionViewSet, basename='prescription')
 
 urlpatterns = [
     # 1. الموجه التلقائي (Specializations, Diseases, Appointments, Prescriptions)
@@ -50,16 +46,13 @@ urlpatterns = [
     path("admin/update-role/<int:user_id>/", AdminUpdateRole.as_view()),
     path('admin/patients/', PatientListView.as_view(), name='admin-patients-list'),
 
-    # 5. Reset Password
-    path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
+    # 5. Reset Password Flow
+    # API لاستقبال الإيميل من فلاتر وإرسال الرابط
+    path('api/send-reset-email/', SendPasswordResetEmailView.as_view(), name='send-reset-email'),
+    # صفحات الويب التي يفتحها المستخدم من الإيميل
+    path('reset/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
+    path('reset/done/', auth_views.PasswordResetCompleteView.as_view(), name='password_reset_complete'),
 
     # 6. Admin Doctor Management
     path('admin/doctors/<int:doctor_id>/', AdminDoctorDetailView.as_view(), name='admin-doctor-detail'),
-
-    # 7. AIChatView
-    path('ai/chat/', AIChatView.as_view(), name='ai-chat'),
-
-    # 8. Pharmacy
-    path('pharmacy/medicines/', MedicineListView.as_view(), name='medicine-list'),
-    path('pharmacy/orders/', PharmacyOrderView.as_view(), name='pharmacy-orders'),
 ]

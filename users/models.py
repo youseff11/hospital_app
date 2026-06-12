@@ -89,7 +89,7 @@ class DoctorProfile(models.Model):
         null=True,
         verbose_name="Specialization"
     )
-    license_number = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    license_number = models.CharField(max_length=50, unique=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
     
     def __str__(self):
@@ -245,44 +245,3 @@ class PrescriptionMedicine(models.Model):
     class Meta:
         verbose_name = "Prescription Medicine"
         verbose_name_plural = "Prescription Medicines"
-
-# 9. الصيدلية - الأدوية المتاحة
-class Medicine(models.Model):
-    name = models.CharField(max_length=200, verbose_name="Medicine Name")
-    description = models.TextField(blank=True, null=True, verbose_name="Description")
-    price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Price")
-    stock = models.IntegerField(default=0, verbose_name="Stock Quantity")
-    category = models.CharField(max_length=100, blank=True, null=True, verbose_name="Category")
-    is_available = models.BooleanField(default=True, verbose_name="Available")
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name = "Medicine"
-        verbose_name_plural = "Medicines"
-
-
-# 10. طلبات الصيدلية
-class PharmacyOrder(models.Model):
-    STATUS_CHOICES = (
-        ('PENDING', 'Pending'),
-        ('CONFIRMED', 'Confirmed'),
-        ('DELIVERED', 'Delivered'),
-        ('CANCELLED', 'Cancelled'),
-    )
-    patient = models.ForeignKey(PatientProfile, on_delete=models.CASCADE, verbose_name="Patient")
-    medicine = models.ForeignKey(Medicine, on_delete=models.CASCADE, verbose_name="Medicine")
-    quantity = models.IntegerField(default=1, verbose_name="Quantity")
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
-    notes = models.TextField(blank=True, null=True, verbose_name="Notes")
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.patient.user_profile.user.username} - {self.medicine.name}"
-
-    class Meta:
-        verbose_name = "Pharmacy Order"
-        verbose_name_plural = "Pharmacy Orders"
-        ordering = ['-created_at']

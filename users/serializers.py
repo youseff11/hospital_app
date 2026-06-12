@@ -8,9 +8,7 @@ from .models import (
     Disease, 
     Appointment,
     Prescription,
-    PrescriptionMedicine,
-    Medicine,
-    PharmacyOrder
+    PrescriptionMedicine
 )
 
 # 1. Doctor Profile Serializer
@@ -89,7 +87,6 @@ class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
-
 # 5. Disease Serializer
 class DiseaseSerializer(serializers.ModelSerializer):
     specialization_name_ar = serializers.CharField(source='specialization.name_ar', read_only=True)
@@ -103,12 +100,13 @@ class DiseaseSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {'specialization': {'required': False, 'allow_null': True}}
 
-# 6. Appointment Serializer (المعدل لحل أزمة الحجز نهائياً)
+# 6. Appointment Serializer
 class AppointmentSerializer(serializers.ModelSerializer):
-    # غيرناها لـ IntegerField عشان تستقبل الرقم من الموبايل وم تضربش Validation تلقائي
-    doctor_id = serializers.IntegerField(write_only=True)
     patient_id = serializers.PrimaryKeyRelatedField(
         queryset=PatientProfile.objects.all(), source='patient', write_only=True
+    )
+    doctor_id = serializers.PrimaryKeyRelatedField(
+        queryset=DoctorProfile.objects.all(), source='doctor', write_only=True
     )
     patient_name = serializers.CharField(source='patient.user_profile.user.username', read_only=True)
     doctor_name = serializers.CharField(source='doctor.user_profile.user.username', read_only=True)
@@ -116,25 +114,10 @@ class AppointmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Appointment
         fields = [
-            'id', 'patient_id', 'doctor_id', 'appointment_date',
+            'id', 'patient_id', 'doctor_id', 'appointment_date', 
             'status', 'notes', 'patient_name', 'doctor_name'
         ]
         read_only_fields = ['patient_name', 'doctor_name']
-
-    def create(self, validated_data):
-        doctor_user_id = validated_data.pop('doctor_id')
-
-        # اللقطة السحرية: بندور في جدول الـ DoctorProfile عن طريق الـ User ID اللي جاي من الفلاتر
-        try:
-            doctor_profile = DoctorProfile.objects.get(user_profile__user__id=doctor_user_id)
-        except DoctorProfile.DoesNotExist:
-            raise serializers.ValidationError({
-                "doctor_id": f"الدكتور اللي اليوزر بتاعه {doctor_user_id} ملوش ملف طبيب (DoctorProfile) متسجل في السيستم."
-            })
-
-        # بنربط الـ profile اللي لقيناه بالموعد وبنسيف في الداتابيز
-        appointment = Appointment.objects.create(doctor=doctor_profile, **validated_data)
-        return appointment
 
 # 7. Patient Profile Serializer
 class PatientProfileSerializer(serializers.ModelSerializer):
@@ -218,20 +201,3 @@ class PrescriptionSerializer(serializers.ModelSerializer):
                 PrescriptionMedicine.objects.create(prescription=instance, **medicine_data)
         
         return instance
-
-# 10. Pharmacy Serializers
-class MedicineSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Medicine
-        fields = ['id', 'name', 'description', 'price', 'stock', 'category', 'is_available']
-
-
-class PharmacyOrderSerializer(serializers.ModelSerializer):
-    medicine_name = serializers.CharField(source='medicine.name', read_only=True)
-    medicine_price = serializers.DecimalField(source='medicine.price', max_digits=10, decimal_places=2, read_only=True)
-    patient_name = serializers.CharField(source='patient.user_profile.user.username', read_only=True)
-
-    class Meta:
-        model = PharmacyOrder
-        fields = ['id', 'medicine', 'medicine_name', 'medicine_price', 'quantity', 'status', 'notes', 'created_at', 'patient_name']
-        read_only_fields = ['status', 'created_at', 'patient_name']
