@@ -405,7 +405,6 @@ class MedicineViewSet(viewsets.ModelViewSet):
     authentication_classes = [TokenAuthentication]
 
     def get_permissions(self):
-        # أي حد يقدر يتصفح الأدوية، لكن الإضافة/التعديل/الحذف للأدمن فقط
         if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        return [IsAdminUser()]
+            return [permissions.AllowAny()] 
+        return [permissions.IsAdminUser()]
