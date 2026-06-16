@@ -8,7 +8,8 @@ from .models import (
     Disease, 
     Appointment,
     Prescription,
-    PrescriptionMedicine
+    PrescriptionMedicine,
+    Medicine # <--- تم الإضافة هنا
 )
 
 # 1. Doctor Profile Serializer
@@ -150,7 +151,7 @@ class PrescriptionMedicineSerializer(serializers.ModelSerializer):
             'duration': {'required': False, 'allow_blank': True},
         }
 
-# 9. Prescription Serializer (المتوافق مع تعدد الروشتات)
+# 9. Prescription Serializer
 class PrescriptionSerializer(serializers.ModelSerializer):
     medicines = PrescriptionMedicineSerializer(many=True)
     patient_name = serializers.SerializerMethodField()
@@ -180,7 +181,6 @@ class PrescriptionSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         medicines_data = validated_data.pop('medicines', [])
-        # إنشاء الروشتة - الآن ForeignKey سيسمح بإنشاء سجلات متعددة لنفس الموعد
         prescription = Prescription.objects.create(**validated_data)
         
         for medicine_data in medicines_data:
@@ -190,14 +190,18 @@ class PrescriptionSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         medicines_data = validated_data.pop('medicines', None)
         instance.diagnosis = validated_data.get('diagnosis', instance.diagnosis)
-        # ملاحظة: إذا تم تحديث الـ appointment، سيتم قبوله هنا أيضاً
         instance.appointment = validated_data.get('appointment', instance.appointment)
         instance.save()
 
         if medicines_data is not None:
-            # مسح الأدوية القديمة وإضافة الجديدة المرتبطة بهذه الروشتة تحديداً
             instance.medicines.all().delete()
             for medicine_data in medicines_data:
                 PrescriptionMedicine.objects.create(prescription=instance, **medicine_data)
         
         return instance
+
+# 10. Medicine Serializer (صيدلية الأدوية)
+class MedicineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Medicine
+        fields = ['id', 'name_en', 'name_ar', 'description', 'price', 'image']

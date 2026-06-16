@@ -8,14 +8,14 @@ from .models import (
     Disease, 
     Appointment,
     Prescription,
-    PrescriptionMedicine
+    PrescriptionMedicine,
+    Medicine # <--- تم الإضافة هنا
 )
 
 # ========================================================
 # 🔹 Custom Form for User Profiles Management
 # ========================================================
 class UserProfileAdminForm(forms.ModelForm):
-    # إضافة حقل "التخصص" بشكل وهمي في الفورم ليظهر للأدمن
     specialization = forms.ModelChoiceField(
         queryset=Specialization.objects.all(),
         required=False,
@@ -29,7 +29,6 @@ class UserProfileAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # إذا كنا نعدل على مستخدم وهو بالفعل "طبيب"، نقوم بعرض تخصصه الحالي في الحقل
         if self.instance and self.instance.pk and self.instance.user_type == 'DOCTOR':
             doctor_profile = getattr(self.instance, 'doctorprofile', None)
             if doctor_profile:
@@ -40,14 +39,12 @@ class UserProfileAdminForm(forms.ModelForm):
         user_type = cleaned_data.get('user_type')
         specialization = cleaned_data.get('specialization')
 
-        # 🚨 إجبار الأدمن على اختيار تخصص لو اختار الدور "DOCTOR"
         if user_type == 'DOCTOR' and not specialization:
             self.add_error('specialization', 'يجب اختيار التخصص عند تعيين المستخدم كطبيب!')
 
         return cleaned_data
 
     def save(self, commit=True):
-        # حفظ الـ UserProfile الأساسي أولاً
         user_profile = super().save(commit=False)
         if commit:
             user_profile.save()
@@ -55,25 +52,20 @@ class UserProfileAdminForm(forms.ModelForm):
         user_type = self.cleaned_data.get('user_type')
         specialization = self.cleaned_data.get('specialization')
 
-        # 🔄 المعالجة التلقائية للملفات (Profiles)
         if user_type == 'DOCTOR':
-            # 1. مسح ملف المريض إذا كان موجوداً
             patient_profile = getattr(user_profile, 'patientprofile', None)
             if patient_profile:
                 patient_profile.delete()
             
-            # 2. إنشاء أو تحديث ملف الطبيب مع التخصص
             doctor_profile, created = DoctorProfile.objects.get_or_create(user_profile=user_profile)
             doctor_profile.specialization = specialization
             doctor_profile.save()
 
         elif user_type == 'PATIENT':
-            # 1. مسح ملف الطبيب إذا كان موجوداً
             doctor_profile = getattr(user_profile, 'doctorprofile', None)
             if doctor_profile:
                 doctor_profile.delete()
             
-            # 2. إنشاء ملف المريض
             PatientProfile.objects.get_or_create(user_profile=user_profile)
 
         return user_profile
@@ -83,22 +75,20 @@ class UserProfileAdminForm(forms.ModelForm):
 # ========================================================
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    form = UserProfileAdminForm  # استخدام الفورم المخصص هنا
+    form = UserProfileAdminForm 
     list_display = ('user', 'user_type', 'phone_number')
     list_filter = ('user_type',)
     search_fields = ('user__username', 'phone_number')
     raw_id_fields = ('user',)
     
-    # تنسيق شكل عرض الحقول في صفحة الإضافة/التعديل
     fieldsets = (
         ('User Details', {
             'fields': ('user', 'phone_number')
         }),
         ('Role & Specialization', {
-            'fields': ('user_type', 'specialization'), # ظهور التخصص تحت نوع المستخدم مباشرة
+            'fields': ('user_type', 'specialization'),
         }),
     )
-
 
 # ========================================================
 # 2. Medical Specializations
@@ -107,7 +97,6 @@ class UserProfileAdmin(admin.ModelAdmin):
 class SpecializationAdmin(admin.ModelAdmin):
     list_display = ('name_en', 'name_ar', 'icon')
     search_fields = ('name_en', 'name_ar')
-
 
 # ========================================================
 # 3. Doctor Profiles
@@ -121,7 +110,6 @@ class DoctorProfileAdmin(admin.ModelAdmin):
     def get_username(self, obj):
         return obj.user_profile.user.username
     get_username.short_description = 'Doctor Name'
-
 
 # ========================================================
 # 4. Patient Profiles
@@ -138,7 +126,6 @@ class PatientProfileAdmin(admin.ModelAdmin):
     def phone(self, obj):
         return obj.user_profile.phone_number
     phone.short_description = 'Phone Number'
-
 
 # ========================================================
 # 5. Diseases Management
@@ -160,9 +147,8 @@ class DiseaseAdmin(admin.ModelAdmin):
 
 class PrescriptionInline(admin.StackedInline):
     model = Prescription
-    extra = 0  # لعدم إضافة روشتة فارغة تلقائياً
-    show_change_link = True # رابط للدخول على تفاصيل الروشتة
-
+    extra = 0  
+    show_change_link = True 
 
 # ========================================================
 # 6. Appointments Management
@@ -186,28 +172,23 @@ class AppointmentAdmin(admin.ModelAdmin):
         return obj.doctor.user_profile.user.username
     get_doctor_name.short_description = 'Doctor'
 
-
 # ========================================================
 # 7. Medicine Inline (Linked to Prescription)
 # ========================================================
 class MedicineInline(admin.TabularInline):
     model = PrescriptionMedicine
-    # تم التعديل لاستخدام حقل instructions الجديد
     fields = ('medicine_name', 'dosage', 'duration', 'instructions')
     extra = 1 
-
 
 # ========================================================
 # 8. Prescription Management
 # ========================================================
 @admin.register(Prescription)
 class PrescriptionAdmin(admin.ModelAdmin):
-    # أضفنا التاريخ ورقم الموعد في العرض السريع
     list_display = ('id', 'get_patient', 'get_doctor', 'appointment_id', 'created_at')
-    list_filter = ('created_at',) # فلترة حسب تاريخ الإصدار
+    list_filter = ('created_at',) 
     inlines = [MedicineInline]
     
-    # تحويل اختيار الموعد إلى نافذة بحث بدلاً من قائمة منسدلة عملاقة
     raw_id_fields = ('appointment',) 
     
     search_fields = (
@@ -243,3 +224,12 @@ class PrescriptionAdmin(admin.ModelAdmin):
             'classes': ('collapse',) 
         }),
     )
+
+# ========================================================
+# 9. Pharmacy / Medicine Management
+# ========================================================
+@admin.register(Medicine)
+class MedicineAdmin(admin.ModelAdmin):
+    list_display = ('name_en', 'name_ar', 'price')
+    search_fields = ('name_en', 'name_ar', 'description')
+    list_filter = ('price',)

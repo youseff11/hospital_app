@@ -16,19 +16,20 @@ from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.urls import reverse
 from django.conf import settings
-from django.contrib.auth.models import User
 
 # استيراد الموديلات والـ Serializers
 from .models import (
     UserProfile, PatientProfile, DoctorProfile, 
     Specialization, Disease, Appointment, 
-    Prescription, PrescriptionMedicine
+    Prescription, PrescriptionMedicine,
+    Medicine # <--- تمت الإضافة هنا
 )
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer,
     SpecializationSerializer, DiseaseSerializer, 
     AppointmentSerializer, DoctorProfileSerializer,
-    PatientProfileSerializer, PrescriptionSerializer
+    PatientProfileSerializer, PrescriptionSerializer,
+    MedicineSerializer # <--- تمت الإضافة هنا
 )
 
 # ================================
@@ -208,29 +209,20 @@ class AdminUpdateRole(APIView):
         new_role = request.data.get("role")
         old_role = profile.user_type
 
-        # التأكد من أنه تم إرسال دور جديد وأنه مختلف عن الدور الحالي
         if not new_role or new_role == old_role:
             return Response({"message": "No changes made."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. تحديث الدور
         profile.user_type = new_role
         profile.save()
 
-        # 2. التعامل مع مسح وإنشاء الملفات الشخصية (Profiles)
         if new_role == 'DOCTOR' and old_role == 'PATIENT':
-            # مسح ملف المريض إذا كان موجوداً
             if hasattr(profile, 'patientprofile'):
                 profile.patientprofile.delete()
-            
-            # إنشاء ملف طبيب فارغ لربطه بالحساب
             DoctorProfile.objects.get_or_create(user_profile=profile)
 
         elif new_role == 'PATIENT' and old_role == 'DOCTOR':
-            # مسح ملف الطبيب إذا كان موجوداً
             if hasattr(profile, 'doctorprofile'):
                 profile.doctorprofile.delete()
-            
-            # إنشاء ملف مريض فارغ لربطه بالحساب
             PatientProfile.objects.get_or_create(user_profile=profile)
 
         return Response({
@@ -249,7 +241,7 @@ class PatientListView(generics.ListAPIView):
         return PatientProfile.objects.filter(user_profile__user=user)
 
 # ================================
-# 5️⃣ الروشتات الطبية (Prescriptions) - المحدثة
+# 5️⃣ الروشتات الطبية (Prescriptions)
 # ================================
 
 class PrescriptionViewSet(viewsets.ModelViewSet):
@@ -276,30 +268,24 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
         return Prescription.objects.none()
 
     def perform_create(self, serializer):
-        # 1. التأكد من أن المستخدم طبيب
         if self.request.user.userprofile.user_type != 'DOCTOR':
             raise PermissionDenied("Only doctors can issue prescriptions.")
         
         appointment_id = self.request.data.get('appointment')
         appointment = get_object_or_404(Appointment, id=appointment_id)
         
-        # 2. التأكد من أن الموعد يخص هذا الطبيب
         if appointment.doctor.user_profile.user != self.request.user:
             raise PermissionDenied("You can only issue prescriptions for your own appointments.")
 
-        # تم حذف شرط التحقق من وجود روشتة سابقة (Validation) للسماح بالتعدد ✅
         serializer.save()
 
     @action(detail=False, methods=['get'], url_path='by-appointment/(?P<app_id>\d+)')
     def by_appointment(self, request, app_id=None):
-        """جلب كل الروشتات الخاصة بموعد معين"""
-        # نستخدم filter بدلاً من get_object_or_404 لأننا نتوقع "قائمة"
         prescriptions = Prescription.objects.filter(appointment_id=app_id).prefetch_related('medicines')
 
         if not prescriptions.exists():
             return Response({"error": "No prescriptions found for this appointment."}, status=status.HTTP_404_NOT_FOUND)
         
-        # التحقق من الصلاحية على أول روشتة (لأن كلهم لنفس الموعد)
         first_p = prescriptions.first()
         user_profile = request.user.userprofile
         is_doctor = user_profile == first_p.appointment.doctor.user_profile
@@ -308,7 +294,6 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
         if not (is_doctor or is_patient):
             return Response({"error": "Unauthorized Access"}, status=status.HTTP_403_FORBIDDEN)
             
-        # نرسل many=True لأننا بنعرض قائمة روشتات
         serializer = self.get_serializer(prescriptions, many=True)
         return Response(serializer.data)
 
@@ -346,10 +331,8 @@ class ResetPasswordView(APIView):
 
         user.set_password(new_password)
         user.save()
-        # إلغاء جميع التوكنات القديمة
         Token.objects.filter(user=user).delete()
         return Response({'message': 'Password reset successfully.'}, status=status.HTTP_200_OK)
-
 
 # ================================
 # 7️⃣ Admin Doctor Management
@@ -360,7 +343,6 @@ class AdminDoctorDetailView(APIView):
     authentication_classes = [TokenAuthentication]
 
     def patch(self, request, doctor_id):
-        """تعديل بيانات الطبيب (مثلاً تغيير التخصص)"""
         doctor = get_object_or_404(DoctorProfile, id=doctor_id)
         spec_id = request.data.get('specialization')
         if spec_id:
@@ -370,14 +352,13 @@ class AdminDoctorDetailView(APIView):
         return Response({'message': 'Doctor updated successfully.'})
 
     def delete(self, request, doctor_id):
-        """حذف ملف طبيب"""
         doctor = get_object_or_404(DoctorProfile, id=doctor_id)
         user = doctor.user_profile.user
-        user.delete()  # يحذف كل شيء بالـ cascade
+        user.delete() 
         return Response({'message': 'Doctor deleted.'}, status=status.HTTP_204_NO_CONTENT)
 
 # ================================
-# Send Password Reset Link API
+# 8️⃣ Send Password Reset Link API
 # ================================
 class SendPasswordResetEmailView(APIView):
     permission_classes = [AllowAny]
@@ -391,19 +372,15 @@ class SendPasswordResetEmailView(APIView):
         try:
             user = User.objects.get(email__iexact=email)
         except User.DoesNotExist:
-            # بنرجع Success برضه لأسباب أمنية عشان محدش يقدر يخمن الإيميلات المسجلة
             return Response({'message': 'If the email exists, a reset link has been sent.'}, status=status.HTTP_200_OK)
 
-        # 1. إنشاء Token و User ID مشفر
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = default_token_generator.make_token(user)
 
-        # 2. بناء رابط صفحة إعادة تعيين كلمة المرور
         reset_link = request.build_absolute_uri(
             reverse('password_reset_confirm', kwargs={'uidb64': uid, 'token': token})
         )
 
-        # 3. إرسال الإيميل
         subject = 'Password Reset Request'
         message = f'Hi {user.username},\n\nPlease click the link below to reset your password:\n{reset_link}\n\nIf you did not request this, please ignore this email.'
         
@@ -416,3 +393,19 @@ class SendPasswordResetEmailView(APIView):
         )
 
         return Response({'message': 'If the email exists, a reset link has been sent.'}, status=status.HTTP_200_OK)
+
+# ================================
+# 9️⃣ Pharmacy / Medicines API (الجديد)
+# ================================
+class MedicineViewSet(viewsets.ModelViewSet):
+    queryset = Medicine.objects.all()
+    serializer_class = MedicineSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name_en', 'name_ar', 'description']
+    authentication_classes = [TokenAuthentication]
+
+    def get_permissions(self):
+        # أي حد يقدر يتصفح الأدوية، لكن الإضافة/التعديل/الحذف للأدمن فقط
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAdminUser()]

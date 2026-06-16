@@ -2,12 +2,14 @@
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from django.contrib.auth import views as auth_views # إضافة هذا السطر
+from django.contrib.auth import views as auth_views 
 from .views import (
-    # User Views
-    RegisterView, LoginView, DoctorProfileView,
-    AdminListUsers, AdminDeleteUser, AdminUpdateRole,
-    # Medical Views
+    RegisterView, 
+    LoginView, 
+    DoctorProfileView,
+    AdminListUsers, 
+    AdminDeleteUser, 
+    AdminUpdateRole,
     SpecializationViewSet, 
     DiseaseViewSet, 
     AppointmentViewSet,
@@ -15,9 +17,9 @@ from .views import (
     DoctorListView,
     DoctorsByDiseaseView,
     PatientListView,
-    # New / Updated
-    SendPasswordResetEmailView, # تم تغيير الاسم ليعبر عن الوظيفة الجديدة
+    SendPasswordResetEmailView,
     AdminDoctorDetailView,
+    MedicineViewSet,
 )
 
 # إنشاء الـ Router للـ ViewSets
@@ -26,9 +28,10 @@ router.register(r'specializations', SpecializationViewSet, basename='specializat
 router.register(r'diseases', DiseaseViewSet, basename='disease')
 router.register(r'appointments', AppointmentViewSet, basename='appointment')
 router.register(r'prescriptions', PrescriptionViewSet, basename='prescription')
+router.register(r'medicines', MedicineViewSet, basename='medicine')
 
 urlpatterns = [
-    # 1. الموجه التلقائي (Specializations, Diseases, Appointments, Prescriptions)
+    # 1. الموجه التلقائي (Specializations, Diseases, Appointments, Prescriptions, Medicines)
     path('', include(router.urls)),
 
     # 2. مسارات الحسابات (Auth)
@@ -47,9 +50,7 @@ urlpatterns = [
     path('admin/patients/', PatientListView.as_view(), name='admin-patients-list'),
 
     # 5. Reset Password Flow
-    # API لاستقبال الإيميل من فلاتر وإرسال الرابط
     path('api/send-reset-email/', SendPasswordResetEmailView.as_view(), name='send-reset-email'),
-    # صفحات الويب التي يفتحها المستخدم من الإيميل
     path('reset/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     path('reset/done/', auth_views.PasswordResetCompleteView.as_view(), name='password_reset_complete'),
 

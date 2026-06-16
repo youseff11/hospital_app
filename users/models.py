@@ -8,7 +8,7 @@ class Specialization(models.Model):
         unique=True,
         verbose_name="Specialization Name (EN)",
     )
-    name_ar = models.CharField(  # أضفنا هذا الحقل لحل مشكلة الـ Admin
+    name_ar = models.CharField(  
         max_length=100,
         unique=True,
         verbose_name="اسم التخصص (بالعربي)",
@@ -56,9 +56,8 @@ class UserProfile(models.Model):
         return f"{self.user.username} - {self.get_user_type_display()}"
 
 
-# 3. بروفايل المريض (بعد إضافة فصيلة الدم وتاريخ الميلاد)
+# 3. بروفايل المريض
 class PatientProfile(models.Model):
-    # خيارات فصائل الدم
     BLOOD_GROUP_CHOICES = (
         ('A+', 'A+'), ('A-', 'A-'),
         ('B+', 'B+'), ('B-', 'B-'),
@@ -101,7 +100,7 @@ class DoctorProfile(models.Model):
         verbose_name_plural = "Doctor Profiles"
 
 
-# 5. الأمراض (تم التحديث هنا لإضافة الأعراض بالعربي والإنجليزي)
+# 5. الأمراض
 class Disease(models.Model):
     name_en = models.CharField(
         max_length=150,
@@ -121,13 +120,11 @@ class Disease(models.Model):
         null=True,
         verbose_name="Related Specialization"
     )
-    # الحقل القديم (للاحتياط)
     symptoms = models.TextField(
         verbose_name="Symptoms (General)",
         blank=True,
         null=True
     )
-    # الحقول الجديدة للترجمة في Flutter
     symptoms_en = models.TextField(
         verbose_name="Symptoms (EN)",
         blank=True,
@@ -191,7 +188,7 @@ class Appointment(models.Model):
         verbose_name_plural = "Appointments"
         ordering = ['appointment_date']
 
-# 7. الروشتة الطبية (Prescription)
+# 7. الروشتة الطبية
 class Prescription(models.Model):
     appointment = models.ForeignKey(
         Appointment, 
@@ -219,7 +216,7 @@ class Prescription(models.Model):
         verbose_name_plural = "Prescriptions"
         ordering = ['-created_at']
 
-# 8. الأدوية داخل الروشتة (Prescription Medicines)
+# 8. الأدوية داخل الروشتة
 class PrescriptionMedicine(models.Model):
     prescription = models.ForeignKey(
         Prescription, 
@@ -231,7 +228,6 @@ class PrescriptionMedicine(models.Model):
     dosage = models.CharField(max_length=100, verbose_name="الجرعة", help_text="مثلاً: 3 مرات يومياً")
     duration = models.CharField(max_length=100, verbose_name="المدة", help_text="مثلاً: لمدة أسبوع")
     
-    # تم دمج حقلين التعليمات في حقل واحد
     instructions = models.TextField(
         blank=True, 
         null=True, 
@@ -245,3 +241,18 @@ class PrescriptionMedicine(models.Model):
     class Meta:
         verbose_name = "Prescription Medicine"
         verbose_name_plural = "Prescription Medicines"
+
+# 9. الأدوية في الصيدلية (Medicine Browse)
+class Medicine(models.Model):
+    name_en = models.CharField(max_length=150, verbose_name="Medicine Name (EN)")
+    name_ar = models.CharField(max_length=150, verbose_name="اسم الدواء (بالعربي)", null=True, blank=True)
+    description = models.TextField(verbose_name="Description", blank=True, null=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Price")
+    image = models.ImageField(upload_to='medicines_images/', verbose_name="Medicine Image", blank=True, null=True)
+
+    def __str__(self):
+        return self.name_en
+
+    class Meta:
+        verbose_name = "Medicine"
+        verbose_name_plural = "Medicines"
