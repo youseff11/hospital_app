@@ -14,7 +14,7 @@ from .models import (
 
 # 1. Doctor Profile Serializer
 class DoctorProfileSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField(source='user_profile.user.id', read_only=True)
+    id = serializers.IntegerField(source='pk', read_only=True)
     full_name = serializers.SerializerMethodField()
     phone_number = serializers.SerializerMethodField()
     specialization_data = serializers.SerializerMethodField()
