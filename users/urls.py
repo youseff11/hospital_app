@@ -50,7 +50,7 @@ urlpatterns = [
     path('admin/patients/', PatientListView.as_view(), name='admin-patients-list'),
 
     # 5. Reset Password Flow
-    path('api/send-reset-email/', SendPasswordResetEmailView.as_view(), name='send-reset-email'),
+    path('send-reset-email/', SendPasswordResetEmailView.as_view(), name='send-reset-email'),
     path('reset/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     path('reset/done/', auth_views.PasswordResetCompleteView.as_view(), name='password_reset_complete'),
 
